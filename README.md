@@ -1,21 +1,90 @@
-# Next.js template
+# Receiptly
 
-This is a Next.js template with shadcn/ui.
+Receipt scanning SaaS. Capture a receipt once, get a categorised, totalled
+record you can report on.
 
-## Adding components
+## Stack
 
-To add components to your app, run the following command:
+| Concern    | Choice                                        |
+| ---------- | --------------------------------------------- |
+| Framework  | Next.js 16 (App Router, React 19)             |
+| UI         | shadcn/ui `base-nova` style on Base UI        |
+| Styling    | Tailwind CSS v4                               |
+| Auth       | Clerk                                         |
+| Database   | Neon Postgres (`@neondatabase/serverless`)    |
+| Hosting    | Vercel                                        |
+
+## Getting started
 
 ```bash
-npx shadcn@latest add button
+npm install
+cp .env.example .env.local   # then fill in the values
+npm run dev
 ```
 
-This will place the ui components in the `components` directory.
+Pull the Clerk keys with the Clerk CLI instead of copying them by hand:
 
-## Using components
+```bash
+clerk env pull
+```
 
-To use the components in your app, import them as follows:
+Apply the database schema to a fresh Neon branch:
 
-```tsx
-import { Button } from "@/components/ui/button";
+```bash
+psql "$DATABASE_URL" -f db/schema.sql
+```
+
+## Pages
+
+- `/` — marketing home page.
+- `/scan` — the scanner: capture form, live category detection, recent receipts.
+- `/sign-in`, `/sign-up` — Clerk-hosted flows.
+
+## Data access
+
+Data flows in one direction, and every layer has a single job:
+
+```
+page / server action  →  lib/dal/*  →  lib/db/*  →  Neon
+```
+
+- **`lib/db/*`** — the only place that talks SQL. Each export is one query and
+  takes `userId` as its first argument. No auth logic lives here.
+- **`lib/dal/*`** — the access layer. It resolves the Clerk user, refuses the
+  call when there is no session, maps snake_case rows to camelCase app types,
+  and is the only caller of `lib/db`. Reads are wrapped in React `cache()` so a
+  render that needs the same data twice hits the database once.
+- **`app/actions/*`** — `"use server"` entry points for forms and buttons. They
+  validate input, call the DAL, revalidate paths, and turn thrown errors into
+  serialisable state. Server components call the DAL directly for reads.
+
+A server component must never import from `lib/db` directly — that would skip
+the auth check in the DAL.
+
+## Receipt types
+
+`lib/receipt-types.ts` holds the taxonomy — one `RECEIPT_TYPES` array that the
+form, the list, the home page and the database constraint all read from. Add a
+category there and it appears everywhere.
+
+Every receipt stores three things about its category:
+
+- `receipt_type` — the category in effect.
+- `type_source` — `auto` if detection chose it, `user` if a person did.
+- `detected_type` / `detected_confidence` — what detection suggested, kept even
+  when the user overrides it.
+
+That means the UI can always show what was auto-selected alongside what is
+actually set. Detection itself lives in `lib/classify-receipt.ts` and is
+keyword scoring for now; replacing it with OCR plus a model means rewriting
+that one function body, since callers only read `{ type, confidence }`.
+
+## Scripts
+
+```bash
+npm run dev        # dev server
+npm run build      # production build
+npm run lint       # eslint
+npm run format     # prettier
+npm run typecheck  # tsc --noEmit
 ```
