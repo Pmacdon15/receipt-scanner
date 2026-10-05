@@ -1,9 +1,7 @@
 import { FALLBACK_RECEIPT_TYPE, type ReceiptTypeId } from "@/lib/receipt-types"
+import { classificationSchema, type Classification } from "@/lib/schemas"
 
-export type Classification = {
-  type: ReceiptTypeId
-  confidence: number
-}
+export type { Classification }
 
 // Keyword scoring stands in for real detection. When OCR lands, swap the body
 // of classifyReceipt and leave the signature alone — the DAL and UI only read
@@ -180,4 +178,19 @@ export function classifyReceipt(input: {
     type: best,
     confidence: Math.min(0.95, 0.4 + bestScore * 0.12),
   }
+}
+
+// Callers go through this rather than classifyReceipt directly, so whatever
+// produces the guess (keywords now, OCR/AI later) is checked against
+// classificationSchema before it reaches the database or the UI. A bad guess
+// falls back to "no detection" instead of failing the save.
+export function classifyReceiptSafely(input: {
+  merchant?: string | null
+  rawText?: string | null
+}): Classification {
+  const parsed = classificationSchema.safeParse(classifyReceipt(input))
+  if (parsed.success) return parsed.data
+
+  console.error("receipt classifier returned an invalid result", parsed.error)
+  return { type: FALLBACK_RECEIPT_TYPE, confidence: 0 }
 }

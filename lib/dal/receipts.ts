@@ -1,7 +1,7 @@
 import { cache } from "react"
 import { auth, clerkClient } from "@clerk/nextjs/server"
 
-import { classifyReceipt } from "@/lib/classify-receipt"
+import { classifyReceiptSafely } from "@/lib/classify-receipt"
 import {
   deleteReceipt,
   insertReceipt,
@@ -11,7 +11,6 @@ import {
   selectReceiptTotals,
   updateReceiptType,
   type ReceiptRow,
-  type ReceiptSort,
   type ReceiptTotals,
   type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
@@ -20,11 +19,33 @@ import {
   isReceiptTypeId,
   type ReceiptTypeId,
 } from "@/lib/receipt-types"
+import {
+  firstErrorMessage,
+  newReceiptSchema,
+  receiptIdSchema,
+  receiptTypeIdSchema,
+  suggestReceiptTypeInputSchema,
+  type NewReceipt,
+  type ReceiptSort,
+  type SearchScope,
+  type SuggestReceiptTypeInput,
+} from "@/lib/schemas"
+
+export type { NewReceipt, SearchScope }
 
 export class UnauthorizedError extends Error {
   constructor() {
     super("Not signed in.")
     this.name = "UnauthorizedError"
+  }
+}
+
+// Input that failed schema validation at the DAL boundary. The message is
+// safe to show to the user.
+export class InvalidInputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "InvalidInputError"
   }
 }
 
@@ -93,6 +114,7 @@ export const getReceipts = cache(
 
 export const getReceipt = cache(async (id: string) => {
   const userId = await requireUserId()
+  if (!receiptIdSchema.safeParse(id).success) return null
   const row = await selectReceiptById(userId, id)
   return row ? toReceipt(row) : null
 })
@@ -102,23 +124,21 @@ export const getReceiptTotals = cache(async (): Promise<ReceiptTotals> => {
   return selectReceiptTotals(userId)
 })
 
-export type NewReceipt = {
-  merchant: string
-  purchasedOn: string | null
-  currency: string
-  subtotalCents: number | null
-  taxCents: number | null
-  totalCents: number
-  receiptType?: ReceiptTypeId
-  rawText: string | null
-  notes: string | null
-}
-
-export async function createReceipt(input: NewReceipt): Promise<Receipt> {
+export async function createReceipt(raw: NewReceipt): Promise<Receipt> {
   const userId = await requireUserId()
   const orgId = await getActiveOrgId()
 
-  const detected = classifyReceipt({
+  // Re-checked here so nothing reaches insertReceipt unvalidated, whichever
+  // caller it came from.
+  const parsed = newReceiptSchema.safeParse(raw)
+  if (!parsed.success) {
+    throw new InvalidInputError(
+      firstErrorMessage(parsed.error, "That receipt is not valid.")
+    )
+  }
+  const input = parsed.data
+
+  const detected = classifyReceiptSafely({
     merchant: input.merchant,
     rawText: input.rawText,
   })
@@ -151,25 +171,31 @@ export async function setReceiptType(
   receiptType: ReceiptTypeId
 ): Promise<Receipt | null> {
   const userId = await requireUserId()
+  if (!receiptIdSchema.safeParse(id).success) return null
+  if (!receiptTypeIdSchema.safeParse(receiptType).success) {
+    throw new InvalidInputError("Unknown receipt type.")
+  }
   const row = await updateReceiptType(userId, id, receiptType)
   return row ? toReceipt(row) : null
 }
 
 export async function removeReceipt(id: string): Promise<boolean> {
   const userId = await requireUserId()
+  if (!receiptIdSchema.safeParse(id).success) return false
   return deleteReceipt(userId, id)
 }
 
 // Exposed so the scan form can preview a guess before anything is saved.
-export async function suggestReceiptType(input: {
-  merchant?: string | null
-  rawText?: string | null
-}) {
+export async function suggestReceiptType(input: SuggestReceiptTypeInput) {
   await requireUserId()
-  return classifyReceipt(input)
+  const parsed = suggestReceiptTypeInputSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new InvalidInputError(
+      firstErrorMessage(parsed.error, "That text is too long to check.")
+    )
+  }
+  return classifyReceiptSafely(parsed.data)
 }
-
-export type SearchScope = "mine" | "org"
 
 export type ReceiptSearchParams = {
   scope: SearchScope

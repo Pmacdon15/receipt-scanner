@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Form from "next/form"
 import Link from "next/link"
 import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { auth } from "@clerk/nextjs/server"
@@ -7,16 +6,14 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   LockIcon,
-  SearchIcon,
   XIcon,
 } from "lucide-react"
 
+import { SearchFiltersForm } from "@/components/search/search-filters-form"
 import { SearchResults } from "@/components/search/search-results"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { searchReceipts, type ReceiptSearchResults } from "@/lib/dal/receipts"
 import { formatMoney } from "@/lib/money"
 import { RECEIPT_TYPES } from "@/lib/receipt-types"
@@ -25,7 +22,6 @@ import {
   hasActiveFilters,
   parseSearchParams,
   searchHref,
-  SORT_OPTIONS,
   toggleType,
   type RawSearchParams,
 } from "@/lib/search-params"
@@ -35,9 +31,6 @@ export const metadata: Metadata = {
   title: "Search",
   description: "Find receipts by type, merchant, date, or amount.",
 }
-
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
 
 export default async function SearchPage({
   searchParams,
@@ -71,101 +64,13 @@ export default async function SearchPage({
 
       <div className="mt-6 grid items-start gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-6">
-          <Form action="/search" className="flex flex-col gap-4">
-            {current.scope === "org" && (
-              <input type="hidden" name="scope" value="org" />
-            )}
-            {current.receiptTypes?.map((type) => (
-              <input key={type} type="hidden" name="type" value={type} />
-            ))}
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="q">Merchant, notes or text</Label>
-              <div className="relative">
-                <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="q"
-                  name="q"
-                  type="search"
-                  defaultValue={values.q}
-                  placeholder="e.g. Costco"
-                  className="pl-8"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="from">From</Label>
-                <Input
-                  id="from"
-                  name="from"
-                  type="date"
-                  defaultValue={values.from}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="to">To</Label>
-                <Input id="to" name="to" type="date" defaultValue={values.to} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="min">Min total</Label>
-                <Input
-                  id="min"
-                  name="min"
-                  inputMode="decimal"
-                  defaultValue={values.min}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="max">Max total</Label>
-                <Input
-                  id="max"
-                  name="max"
-                  inputMode="decimal"
-                  defaultValue={values.max}
-                  placeholder="Any"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="sort">Sort by</Label>
-              <select
-                id="sort"
-                name="sort"
-                defaultValue={values.sort}
-                className={SELECT_CLASS}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button type="submit" className="flex-1">
-                Search
-              </Button>
-              {filtered && (
-                <Button
-                  variant="outline"
-                  nativeButton={false}
-                  render={
-                    <Link href={searchHref({ scope: current.scope })} />
-                  }
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-          </Form>
+          <SearchFiltersForm
+            scope={current.scope}
+            receiptTypes={current.receiptTypes}
+            values={values}
+            filtered={filtered}
+            clearHref={searchHref({ scope: current.scope })}
+          />
         </aside>
 
         <section className="flex flex-col gap-4">
