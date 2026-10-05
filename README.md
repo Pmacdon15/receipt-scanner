@@ -28,7 +28,8 @@ Pull the Clerk keys with the Clerk CLI instead of copying them by hand:
 clerk env pull
 ```
 
-Apply the database schema to a fresh Neon branch:
+Apply the database schema to a fresh Neon branch (it is safe to re-run on an
+existing database, which is how the `org_id` column gets added):
 
 ```bash
 psql "$DATABASE_URL" -f db/schema.sql
@@ -38,6 +39,10 @@ psql "$DATABASE_URL" -f db/schema.sql
 
 - `/` — marketing home page.
 - `/scan` — the scanner: capture form, live category detection, recent receipts.
+- `/search` — search receipts by type, merchant/notes text, date range and
+  amount, with per-type counts. When a Clerk organization is active it can
+  switch between "My receipts" and the organization's receipts. All filters
+  live in the URL, so a search can be bookmarked or shared.
 - `/sign-in`, `/sign-up` — Clerk-hosted flows.
 
 ## Data access
