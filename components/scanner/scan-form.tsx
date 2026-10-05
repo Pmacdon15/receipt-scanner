@@ -171,12 +171,13 @@ export function ScanForm() {
             </TabsContent>
           </Tabs>
 
-          {/* Posts the compressed photo with the rest of the form. Empty in
+          {/* Posts the uploaded photo's blob pathname, not the photo itself —
+              the bytes went straight to the store from ScanCapture. Empty in
               manual mode, which the action reads as "no image". */}
           <input
             type="hidden"
-            name="imageDataUrl"
-            value={mode === "scan" ? (capture?.dataUrl ?? "") : ""}
+            name="imagePathname"
+            value={mode === "scan" ? (capture?.pathname ?? "") : ""}
           />
 
           <div className="grid gap-2">

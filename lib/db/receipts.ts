@@ -16,6 +16,7 @@ export type ReceiptRow = {
   detected_type: ReceiptTypeId | null
   detected_confidence: number | null
   raw_text: string | null
+  /** Vercel Blob pathname of the scanned photo, or null when there is none. */
   image_url: string | null
   notes: string | null
   created_at: string
@@ -23,13 +24,15 @@ export type ReceiptRow = {
 }
 
 /**
- * A receipt without its image payload.
+ * A receipt without its image pathname.
  *
- * Scanned images are stored inline in image_url as compressed data URLs, which
- * run close to 900KB each. `select *` across a 50-row page would therefore pull
- * tens of megabytes out of Postgres to render a list that never shows the photo,
- * so every query but selectReceiptById names its columns and reports the image
- * as the boolean `has_image` instead.
+ * image_url used to hold the photo itself as a ~900KB data URL, so keeping it
+ * out of list queries was about not dragging tens of megabytes out of Postgres.
+ * It now holds a short Vercel Blob pathname, and the exclusion stays for a
+ * different reason: `has_image` is all the list UI needs, and these rows are
+ * handed to client components, so narrowing here keeps the storage key for
+ * someone's receipt photo out of the page payload. selectReceiptById is still
+ * the only read that returns it.
  */
 export type ReceiptListRow = Omit<ReceiptRow, "image_url"> & {
   has_image: boolean
@@ -48,7 +51,7 @@ export type InsertReceiptInput = {
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
   rawText: string | null
-  /** Compressed data URL from the client, or null for a hand-entered receipt. */
+  /** Blob pathname from the upload route, or null for a hand-entered receipt. */
   imageUrl: string | null
   notes: string | null
 }
@@ -191,8 +194,7 @@ export async function selectReceiptTotals(
 // themselves (in any organization); "org" is everything saved into one
 // organization, by any member.
 export type ReceiptScope =
-  | { kind: "user"; userId: string }
-  | { kind: "org"; orgId: string }
+  { kind: "user"; userId: string } | { kind: "org"; orgId: string }
 
 export type ReceiptSearchFilters = {
   query?: string

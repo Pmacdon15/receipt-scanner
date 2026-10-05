@@ -15,6 +15,7 @@ import {
   type ReceiptTotals,
   type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
+import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 import {
   FALLBACK_RECEIPT_TYPE,
   isReceiptTypeId,
@@ -29,8 +30,9 @@ export class UnauthorizedError extends Error {
 }
 
 // Every export below goes through this, so no query reaches the database
-// without a user id scoping it.
-const requireUserId = cache(async (): Promise<string> => {
+// without a user id scoping it. Exported because the scan action needs the id
+// to check a submitted blob pathname against the caller's own folder.
+export const requireUserId = cache(async (): Promise<string> => {
   const { userId } = await auth()
   if (!userId) throw new UnauthorizedError()
   return userId
@@ -100,13 +102,19 @@ export const getReceipt = cache(async (id: string) => {
   if (!row) return null
 
   // This is the one read that carries image_url. Narrow it to the shared shape
-  // so the data URL is not handed to a client component by accident; callers
-  // that want the photo should reach for getReceiptImage.
+  // so the blob pathname is not handed to a client component by accident;
+  // callers that want the photo should reach for getReceiptImage.
   const { image_url, ...rest } = row
   return toReceipt({ ...rest, has_image: image_url !== null })
 })
 
-/** The receipt's scanned photo as a data URL, read on its own because it is large. */
+/**
+ * The blob pathname of the receipt's scanned photo, or null when it has none.
+ *
+ * Scoped to the signed-in user, which is what makes it safe for the image route
+ * to serve whatever comes back: a receipt belonging to somebody else reads as
+ * missing here.
+ */
 export const getReceiptImage = cache(async (id: string) => {
   const userId = await requireUserId()
   const row = await selectReceiptById(userId, id)
@@ -127,7 +135,7 @@ export type NewReceipt = {
   totalCents: number
   receiptType?: ReceiptTypeId
   rawText: string | null
-  /** Compressed data URL from the scan capture, or null when entered by hand. */
+  /** Blob pathname from the upload route, or null when entered by hand. */
   imageUrl?: string | null
   notes: string | null
 }
@@ -135,6 +143,15 @@ export type NewReceipt = {
 export async function createReceipt(input: NewReceipt): Promise<Receipt> {
   const userId = await requireUserId()
   const orgId = await getActiveOrgId()
+
+  // Belt and braces behind the action's own check: the pathname is only ever
+  // user input, and this is the chokepoint that knows whose receipt it is.
+  if (
+    input.imageUrl != null &&
+    !isOwnReceiptImagePathname(input.imageUrl, userId)
+  ) {
+    throw new Error("Refusing to attach a photo outside the user's folder.")
+  }
 
   const detected = classifyReceipt({
     merchant: input.merchant,

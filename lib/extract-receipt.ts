@@ -42,9 +42,11 @@ export const NOT_RECOGNISED: ExtractionResult = {
  * the flow.
  */
 export async function extractReceiptFields(
-  // The parameter is the point: it fixes the signature a real OCR pass reads from.
+  // The parameter is the point: it fixes the signature a real OCR pass reads
+  // from. It is the photo's blob pathname, which such a pass would read out of
+  // the private store itself rather than being handed the bytes.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  imageDataUrl: string
+  imagePathname: string
 ): Promise<ExtractionResult> {
   return NOT_RECOGNISED
 }

@@ -1,22 +1,17 @@
 /**
  * Client-side image compression for receipt photos.
  *
- * Phone cameras produce 4-12MB JPEGs, which a Server Action will not accept:
- * its request body is capped at 1MB. Everything here runs in the browser so the
- * large original never leaves the device — only the shrunken result is sent,
- * which keeps the scan inside the default cap with no bodySizeLimit override.
+ * Phone cameras produce 4-12MB JPEGs. Everything here runs in the browser so
+ * the large original never leaves the device — only the shrunken result is
+ * uploaded.
  *
- * The budget is measured against the finished data URL rather than the raw
- * encoded bytes, because the data URL is what actually crosses the wire and
- * base64 inflates the payload by roughly a third.
+ * The output is a binary JPEG `Blob`, posted as multipart form data to the
+ * upload route. It used to be a base64 data URL sized to fit a Server Action's
+ * 1MB body cap; the upload is now a Route Handler with far more headroom, so
+ * there is no reason left to pay base64's ~33% inflation on every byte.
  */
 
-/**
- * Data-URL budget. Held below the 1MB Server Action cap rather than at it: the
- * cap covers the whole request, so the remaining form fields and the bytes
- * multipart adds for boundaries and part headers have to fit in the gap too.
- */
-export const MAX_DATA_URL_BYTES = 900 * 1024
+import { IMAGE_CONTENT_TYPE, MAX_IMAGE_BYTES } from "@/lib/receipt-image"
 
 /** Receipts are tall and thin; this keeps text legible without paying for a 4000px frame. */
 const MAX_EDGE = 1600
@@ -28,8 +23,9 @@ const QUALITY_STEPS = [0.82, 0.7, 0.58, 0.46, 0.34]
 const MIN_EDGE = 640
 
 export type CompressedImage = {
-  dataUrl: string
-  /** Size of the data URL in bytes, which is what the budget is measured against. */
+  /** The encoded JPEG, ready to upload. */
+  blob: Blob
+  /** Size of the encoded JPEG in bytes, which is what the budget is measured against. */
   bytes: number
   width: number
   height: number
@@ -47,7 +43,7 @@ export function isSupportedImage(file: File) {
 }
 
 /**
- * Downscales and re-encodes `file` until its data URL fits `maxBytes`.
+ * Downscales and re-encodes `file` until the JPEG fits `maxBytes`.
  *
  * Walks the quality ladder first, then halves the long edge and walks it again,
  * because dropping resolution recovers far more bytes than the last few quality
@@ -55,7 +51,7 @@ export function isSupportedImage(file: File) {
  */
 export async function compressImage(
   file: File,
-  maxBytes: number = MAX_DATA_URL_BYTES
+  maxBytes: number = MAX_IMAGE_BYTES
 ): Promise<CompressedImage> {
   if (!isSupportedImage(file)) {
     throw new ImageCompressionError("That file is not an image.")
@@ -71,8 +67,8 @@ export async function compressImage(
       const { canvas, width, height } = drawScaled(bitmap, edge)
 
       for (const quality of QUALITY_STEPS) {
-        const dataUrl = canvas.toDataURL("image/jpeg", quality)
-        const candidate = { dataUrl, bytes: dataUrl.length, width, height }
+        const blob = await encodeJpeg(canvas, quality)
+        const candidate = { blob, bytes: blob.size, width, height }
 
         if (candidate.bytes <= maxBytes) return candidate
         if (!smallest || candidate.bytes < smallest.bytes) smallest = candidate
@@ -101,6 +97,26 @@ async function loadBitmap(file: File): Promise<ImageBitmap> {
       "That image could not be read. It may be corrupt or an unsupported format."
     )
   }
+}
+
+/** Promise wrapper for `canvas.toBlob`, which is callback-only. */
+function encodeJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else {
+          reject(
+            new ImageCompressionError(
+              "This browser could not encode the image."
+            )
+          )
+        }
+      },
+      IMAGE_CONTENT_TYPE,
+      quality
+    )
+  })
 }
 
 function drawScaled(bitmap: ImageBitmap, maxEdge: number) {

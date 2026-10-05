@@ -31,17 +31,75 @@ import {
   formatBytes,
   ImageCompressionError,
   isSupportedImage,
-  MAX_DATA_URL_BYTES,
 } from "@/lib/compress-image"
+import { MAX_IMAGE_BYTES } from "@/lib/receipt-image"
 import { cn } from "@/lib/utils"
 
 export type CapturedImage = {
-  dataUrl: string
+  /**
+   * Blob pathname the upload route minted for this photo. This is the only part
+   * the form posts; the bytes are already in the blob store by then.
+   */
+  pathname: string
+  /** The compressed JPEG, kept on the client purely to render the preview. */
+  blob: Blob
   bytes: number
   width: number
   height: number
   originalBytes: number
   fileName: string
+}
+
+/** Compressing happens on this device; uploading is a round trip. */
+type Phase = "compressing" | "uploading"
+
+class ImageUploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "ImageUploadError"
+  }
+}
+
+/**
+ * Posts the compressed photo and returns the pathname the store gave it.
+ *
+ * Goes to a Route Handler rather than a Server Action because an Action's body
+ * is capped at 1MB — see app/api/receipts/image/route.ts.
+ */
+async function uploadImage(blob: Blob): Promise<string> {
+  const body = new FormData()
+  // The route ignores this name and mints its own pathname, so it is a
+  // placeholder rather than the user's filename.
+  body.append("file", blob, "receipt.jpg")
+
+  let response: Response
+  try {
+    response = await fetch("/api/receipts/image", { method: "POST", body })
+  } catch {
+    throw new ImageUploadError(
+      "The photo could not be uploaded. Check your connection and try again."
+    )
+  }
+
+  const payload: unknown = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : "That photo could not be uploaded. Try again."
+    throw new ImageUploadError(message)
+  }
+
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    typeof (payload as { pathname?: unknown }).pathname !== "string"
+  ) {
+    throw new ImageUploadError("The upload did not come back as expected.")
+  }
+
+  return (payload as { pathname: string }).pathname
 }
 
 export function ScanCapture({
@@ -56,12 +114,12 @@ export function ScanCapture({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const cameraInputRef = React.useRef<HTMLInputElement>(null)
 
-  const [isCompressing, setIsCompressing] = React.useState(false)
+  const [phase, setPhase] = React.useState<Phase | null>(null)
   const [isDragging, setIsDragging] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Guards against a slow compression landing after the user has already
-  // cleared the capture or picked a different photo.
+  // Guards against a slow compression or upload landing after the user has
+  // already cleared the capture or picked a different photo.
   const runIdRef = React.useRef(0)
 
   const accept = async (file: File | null | undefined) => {
@@ -75,14 +133,21 @@ export function ScanCapture({
       return
     }
 
-    setIsCompressing(true)
+    setPhase("compressing")
 
     try {
       const compressed = await compressImage(file)
       if (runId !== runIdRef.current) return
 
+      // Uploaded here rather than on submit, so a store that is refusing the
+      // photo is reported before the user has filled the rest of the form in.
+      setPhase("uploading")
+      const pathname = await uploadImage(compressed.blob)
+      if (runId !== runIdRef.current) return
+
       onChange({
         ...compressed,
+        pathname,
         originalBytes: file.size,
         fileName: file.name || "receipt.jpg",
       })
@@ -90,18 +155,19 @@ export function ScanCapture({
       if (runId !== runIdRef.current) return
 
       setError(
-        cause instanceof ImageCompressionError
+        cause instanceof ImageCompressionError ||
+          cause instanceof ImageUploadError
           ? cause.message
           : "That photo could not be processed. Try another."
       )
     } finally {
-      if (runId === runIdRef.current) setIsCompressing(false)
+      if (runId === runIdRef.current) setPhase(null)
     }
   }
 
   const clear = () => {
     runIdRef.current++
-    setIsCompressing(false)
+    setPhase(null)
     setError(null)
     onChange(null)
     // Without this, picking the same file twice in a row fires no change event.
@@ -109,7 +175,7 @@ export function ScanCapture({
     if (cameraInputRef.current) cameraInputRef.current.value = ""
   }
 
-  const isBusy = disabled || isCompressing
+  const isBusy = disabled || phase !== null
 
   return (
     <div className="grid gap-3">
@@ -156,15 +222,15 @@ export function ScanCapture({
             error && "border-destructive/50"
           )}
         >
-          <Viewfinder active={isCompressing} />
+          <Viewfinder active={phase !== null} />
 
           <span
             className={cn(
               "mx-auto flex size-11 items-center justify-center rounded-lg bg-background shadow-xs transition-transform",
-              isCompressing && "scale-95"
+              phase !== null && "scale-95"
             )}
           >
-            {isCompressing ? (
+            {phase !== null ? (
               <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
             ) : (
               <ScanLineIcon className="size-5 text-muted-foreground" />
@@ -172,12 +238,18 @@ export function ScanCapture({
           </span>
 
           <p className="mt-4 text-sm font-medium">
-            {isCompressing ? "Compressing photo" : "Add a receipt photo"}
+            {phase === "compressing"
+              ? "Compressing photo"
+              : phase === "uploading"
+                ? "Uploading photo"
+                : "Add a receipt photo"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {isCompressing
+            {phase === "compressing"
               ? "Shrinking it on this device before it uploads."
-              : `Drop one here, or use a button below. Compressed to under ${formatBytes(MAX_DATA_URL_BYTES)}.`}
+              : phase === "uploading"
+                ? "Sending it to private storage."
+                : `Drop one here, or use a button below. Compressed to under ${formatBytes(MAX_IMAGE_BYTES)}.`}
           </p>
 
           <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
@@ -203,7 +275,7 @@ export function ScanCapture({
             </Button>
           </div>
 
-          {isCompressing && <ShimmerBar />}
+          {phase !== null && <ShimmerBar />}
         </div>
       )}
 
@@ -271,14 +343,25 @@ function CapturedPreview({
       ? Math.max(0, Math.round((saved / image.originalBytes) * 100))
       : 0
 
+  // The photo is already in the blob store, but reading it back would cost a
+  // round trip for bytes this device still has, so the preview points at the
+  // local blob. Revoked when the blob changes and on unmount, so a run of
+  // retakes does not pin every previous photo in memory.
+  const previewUrl = React.useMemo(
+    () => URL.createObjectURL(image.blob),
+    [image.blob]
+  )
+
+  React.useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl])
+
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       <div className="flex items-start gap-3 p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a client-side
-            data URL, so next/image has nothing to optimise and would only
+        {/* eslint-disable-next-line @next/next/no-img-element -- a local blob
+            URL, so next/image has nothing to optimise and would only
             round-trip it through the optimiser. */}
         <img
-          src={image.dataUrl}
+          src={previewUrl}
           alt={`Receipt photo: ${image.fileName}`}
           className="size-20 shrink-0 rounded-md border bg-muted object-cover"
         />
