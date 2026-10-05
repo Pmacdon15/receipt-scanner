@@ -4,5 +4,6 @@ export const site = {
   nav: [
     { href: "/", label: "Home" },
     { href: "/scan", label: "Scan" },
+    { href: "/search", label: "Search" },
   ],
 } as const
