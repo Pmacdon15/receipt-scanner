@@ -1,5 +1,5 @@
 import { cache } from "react"
-import { auth } from "@clerk/nextjs/server"
+import { auth, clerkClient } from "@clerk/nextjs/server"
 
 import { classifyReceipt } from "@/lib/classify-receipt"
 import {
@@ -7,10 +7,13 @@ import {
   insertReceipt,
   selectReceiptById,
   selectReceipts,
+  searchReceipts as searchReceiptRows,
   selectReceiptTotals,
   updateReceiptType,
   type ReceiptRow,
+  type ReceiptSort,
   type ReceiptTotals,
+  type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
 import {
   FALLBACK_RECEIPT_TYPE,
@@ -33,8 +36,17 @@ const requireUserId = cache(async (): Promise<string> => {
   return userId
 })
 
+// The organization the user has active in Clerk, if any. Receipts saved while
+// it is active are shared with its members.
+const getActiveOrgId = cache(async (): Promise<string | null> => {
+  const { orgId } = await auth()
+  return orgId ?? null
+})
+
 export type Receipt = {
   id: string
+  userId: string
+  orgId: string | null
   merchant: string
   purchasedOn: string | null
   currency: string
@@ -52,6 +64,8 @@ export type Receipt = {
 function toReceipt(row: ReceiptRow): Receipt {
   return {
     id: row.id,
+    userId: row.user_id,
+    orgId: row.org_id,
     merchant: row.merchant,
     purchasedOn: row.purchased_on,
     currency: row.currency,
@@ -102,6 +116,7 @@ export type NewReceipt = {
 
 export async function createReceipt(input: NewReceipt): Promise<Receipt> {
   const userId = await requireUserId()
+  const orgId = await getActiveOrgId()
 
   const detected = classifyReceipt({
     merchant: input.merchant,
@@ -113,6 +128,7 @@ export async function createReceipt(input: NewReceipt): Promise<Receipt> {
   const userPicked = input.receiptType !== undefined
 
   const row = await insertReceipt(userId, {
+    orgId,
     merchant: input.merchant,
     purchasedOn: input.purchasedOn,
     currency: input.currency,
@@ -152,3 +168,138 @@ export async function suggestReceiptType(input: {
   await requireUserId()
   return classifyReceipt(input)
 }
+
+export type SearchScope = "mine" | "org"
+
+export type ReceiptSearchParams = {
+  scope: SearchScope
+  query?: string
+  receiptTypes?: ReceiptTypeId[]
+  purchasedFrom?: string
+  purchasedTo?: string
+  minTotalCents?: number
+  maxTotalCents?: number
+  sort?: ReceiptSort
+  page?: number
+  pageSize?: number
+}
+
+export type SearchedReceipt = Receipt & {
+  isMine: boolean
+  uploadedBy: string
+}
+
+export type ReceiptSearchResults = {
+  // The scope actually searched: "org" falls back to "mine" when no
+  // organization is active, so the page never shows another org's data.
+  scope: SearchScope
+  org: { id: string; name: string } | null
+  receipts: SearchedReceipt[]
+  matchCount: number
+  matchTotalCents: number
+  typeFacets: ReceiptTypeFacet[]
+  page: number
+  pageCount: number
+  pageSize: number
+}
+
+export const searchReceipts = cache(
+  async (params: ReceiptSearchParams): Promise<ReceiptSearchResults> => {
+    const userId = await requireUserId()
+    const orgId = await getActiveOrgId()
+
+    const scope: SearchScope = params.scope === "org" && orgId ? "org" : "mine"
+    const pageSize = clampInt(params.pageSize, 25, 1, 100)
+    const page = clampInt(params.page, 1, 1, 10_000)
+
+    const result = await searchReceiptRows(
+      scope === "org"
+        ? { kind: "org", orgId: orgId! }
+        : { kind: "user", userId },
+      {
+        query: params.query,
+        receiptTypes: params.receiptTypes,
+        purchasedFrom: params.purchasedFrom,
+        purchasedTo: params.purchasedTo,
+        minTotalCents: params.minTotalCents,
+        maxTotalCents: params.maxTotalCents,
+        sort: params.sort,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }
+    )
+
+    const receipts = result.rows.map(toReceipt)
+    const names =
+      scope === "org"
+        ? await getUserNames(receipts.map((r) => r.userId))
+        : new Map<string, string>()
+
+    return {
+      scope,
+      org: orgId ? { id: orgId, name: await getOrgName(orgId) } : null,
+      receipts: receipts.map((r) => ({
+        ...r,
+        isMine: r.userId === userId,
+        uploadedBy:
+          r.userId === userId ? "You" : (names.get(r.userId) ?? "A teammate"),
+      })),
+      matchCount: result.matchCount,
+      matchTotalCents: result.matchTotalCents,
+      typeFacets: result.typeFacets,
+      page,
+      pageSize,
+      pageCount: Math.max(1, Math.ceil(result.matchCount / pageSize)),
+    }
+  }
+)
+
+function clampInt(
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max: number
+) {
+  if (value === undefined || !Number.isFinite(value)) return fallback
+  return Math.min(Math.max(Math.trunc(value), min), max)
+}
+
+// Names are display-only, so a Clerk hiccup falls back to generic labels
+// rather than failing the search.
+async function getUserNames(userIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(userIds)]
+  if (unique.length === 0) return new Map()
+
+  try {
+    const client = await clerkClient()
+    const { data } = await client.users.getUserList({
+      userId: unique,
+      limit: unique.length,
+    })
+    return new Map(
+      data.map((u) => [
+        u.id,
+        [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+          u.username ||
+          u.primaryEmailAddress?.emailAddress ||
+          "A teammate",
+      ])
+    )
+  } catch (error) {
+    console.error("could not load uploader names", error)
+    return new Map()
+  }
+}
+
+const getOrgName = cache(async (orgId: string): Promise<string> => {
+  try {
+    const client = await clerkClient()
+    const org = await client.organizations.getOrganization({
+      organizationId: orgId,
+    })
+    return org.name
+  } catch (error) {
+    console.error("could not load organization name", error)
+    return "Your organization"
+  }
+})

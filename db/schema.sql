@@ -28,3 +28,16 @@ create index if not exists receipts_user_purchased_idx
 
 create index if not exists receipts_user_type_idx
   on receipts (user_id, receipt_type);
+
+-- Organizations (Clerk). A receipt saved while an organization is active is
+-- shared with that organization; personal receipts keep org_id null.
+-- Safe to re-run on an existing database.
+alter table receipts add column if not exists org_id text;
+
+create index if not exists receipts_org_purchased_idx
+  on receipts (org_id, purchased_on desc nulls last, created_at desc)
+  where org_id is not null;
+
+create index if not exists receipts_org_type_idx
+  on receipts (org_id, receipt_type)
+  where org_id is not null;
