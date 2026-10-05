@@ -10,7 +10,7 @@ import {
   searchReceipts as searchReceiptRows,
   selectReceiptTotals,
   updateReceiptType,
-  type ReceiptRow,
+  type ReceiptListRow,
   type ReceiptSort,
   type ReceiptTotals,
   type ReceiptTypeFacet,

@@ -222,7 +222,7 @@ export type ReceiptTypeFacet = {
 }
 
 export type ReceiptSearchResult = {
-  rows: ReceiptRow[]
+  rows: ReceiptListRow[]
   matchCount: number
   matchTotalCents: number
   // Counts per type for every filter except the type filter itself, so the
@@ -294,7 +294,13 @@ export async function searchReceipts(
   // is a bound parameter.
   const [rows, summary, typeFacets] = await Promise.all([
     sql.query(
-      `select * from receipts where ${filtered.where}
+      `select
+         id, user_id, org_id, merchant, purchased_on, currency,
+         subtotal_cents, tax_cents, total_cents,
+         receipt_type, type_source, detected_type, detected_confidence,
+         raw_text, notes, created_at, updated_at,
+         image_url is not null as has_image
+       from receipts where ${filtered.where}
        order by ${orderBy}
        limit ${limit} offset ${offset}`,
       filtered.params
@@ -320,7 +326,7 @@ export async function searchReceipts(
   )[0]
 
   return {
-    rows: rows as ReceiptRow[],
+    rows: rows as ReceiptListRow[],
     matchCount: totals?.match_count ?? 0,
     matchTotalCents: Number(totals?.match_total_cents ?? 0),
     typeFacets: (
