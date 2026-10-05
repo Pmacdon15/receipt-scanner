@@ -9,7 +9,7 @@ import {
   selectReceipts,
   selectReceiptTotals,
   updateReceiptType,
-  type ReceiptRow,
+  type ReceiptListRow,
   type ReceiptTotals,
 } from "@/lib/db/receipts"
 import {
@@ -46,10 +46,12 @@ export type Receipt = {
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
   notes: string | null
+  /** True when a photo was scanned for this receipt. */
+  hasImage: boolean
   createdAt: string
 }
 
-function toReceipt(row: ReceiptRow): Receipt {
+function toReceipt(row: ReceiptListRow): Receipt {
   return {
     id: row.id,
     merchant: row.merchant,
@@ -65,6 +67,7 @@ function toReceipt(row: ReceiptRow): Receipt {
     detectedType: isReceiptTypeId(row.detected_type) ? row.detected_type : null,
     detectedConfidence: row.detected_confidence,
     notes: row.notes,
+    hasImage: row.has_image,
     createdAt: row.created_at,
   }
 }
@@ -80,7 +83,20 @@ export const getReceipts = cache(
 export const getReceipt = cache(async (id: string) => {
   const userId = await requireUserId()
   const row = await selectReceiptById(userId, id)
-  return row ? toReceipt(row) : null
+  if (!row) return null
+
+  // This is the one read that carries image_url. Narrow it to the shared shape
+  // so the data URL is not handed to a client component by accident; callers
+  // that want the photo should reach for getReceiptImage.
+  const { image_url, ...rest } = row
+  return toReceipt({ ...rest, has_image: image_url !== null })
+})
+
+/** The receipt's scanned photo as a data URL, read on its own because it is large. */
+export const getReceiptImage = cache(async (id: string) => {
+  const userId = await requireUserId()
+  const row = await selectReceiptById(userId, id)
+  return row?.image_url ?? null
 })
 
 export const getReceiptTotals = cache(async (): Promise<ReceiptTotals> => {
@@ -97,6 +113,8 @@ export type NewReceipt = {
   totalCents: number
   receiptType?: ReceiptTypeId
   rawText: string | null
+  /** Compressed data URL from the scan capture, or null when entered by hand. */
+  imageUrl?: string | null
   notes: string | null
 }
 
@@ -124,6 +142,7 @@ export async function createReceipt(input: NewReceipt): Promise<Receipt> {
     detectedType: detected.confidence > 0 ? detected.type : null,
     detectedConfidence: detected.confidence > 0 ? detected.confidence : null,
     rawText: input.rawText,
+    imageUrl: input.imageUrl ?? null,
     notes: input.notes,
   })
 

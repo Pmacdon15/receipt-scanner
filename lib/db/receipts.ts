@@ -21,6 +21,19 @@ export type ReceiptRow = {
   updated_at: string
 }
 
+/**
+ * A receipt without its image payload.
+ *
+ * Scanned images are stored inline in image_url as compressed data URLs, which
+ * run close to 900KB each. `select *` across a 50-row page would therefore pull
+ * tens of megabytes out of Postgres to render a list that never shows the photo,
+ * so every query but selectReceiptById names its columns and reports the image
+ * as the boolean `has_image` instead.
+ */
+export type ReceiptListRow = Omit<ReceiptRow, "image_url"> & {
+  has_image: boolean
+}
+
 export type InsertReceiptInput = {
   merchant: string
   purchasedOn: string | null
@@ -33,33 +46,48 @@ export type InsertReceiptInput = {
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
   rawText: string | null
+  /** Compressed data URL from the client, or null for a hand-entered receipt. */
+  imageUrl: string | null
   notes: string | null
 }
 
 export async function selectReceipts(
   userId: string,
   options: { limit?: number; receiptType?: ReceiptTypeId } = {}
-): Promise<ReceiptRow[]> {
+): Promise<ReceiptListRow[]> {
   const sql = getSql()
   const limit = options.limit ?? 50
 
   const rows = options.receiptType
     ? await sql`
-        select * from receipts
+        select
+          id, user_id, merchant, purchased_on, currency,
+          subtotal_cents, tax_cents, total_cents,
+          receipt_type, type_source, detected_type, detected_confidence,
+          raw_text, notes, created_at, updated_at,
+          image_url is not null as has_image
+        from receipts
         where user_id = ${userId} and receipt_type = ${options.receiptType}
         order by purchased_on desc nulls last, created_at desc
         limit ${limit}
       `
     : await sql`
-        select * from receipts
+        select
+          id, user_id, merchant, purchased_on, currency,
+          subtotal_cents, tax_cents, total_cents,
+          receipt_type, type_source, detected_type, detected_confidence,
+          raw_text, notes, created_at, updated_at,
+          image_url is not null as has_image
+        from receipts
         where user_id = ${userId}
         order by purchased_on desc nulls last, created_at desc
         limit ${limit}
       `
 
-  return rows as ReceiptRow[]
+  return rows as ReceiptListRow[]
 }
 
+/** The one query that returns image_url, for showing a single receipt's photo. */
 export async function selectReceiptById(
   userId: string,
   id: string
@@ -75,22 +103,27 @@ export async function selectReceiptById(
 export async function insertReceipt(
   userId: string,
   input: InsertReceiptInput
-): Promise<ReceiptRow> {
+): Promise<ReceiptListRow> {
   const sql = getSql()
   const rows = (await sql`
     insert into receipts (
       user_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
       receipt_type, type_source, detected_type, detected_confidence,
-      raw_text, notes
+      raw_text, image_url, notes
     ) values (
       ${userId}, ${input.merchant}, ${input.purchasedOn}, ${input.currency},
       ${input.subtotalCents}, ${input.taxCents}, ${input.totalCents},
       ${input.receiptType}, ${input.typeSource}, ${input.detectedType}, ${input.detectedConfidence},
-      ${input.rawText}, ${input.notes}
+      ${input.rawText}, ${input.imageUrl}, ${input.notes}
     )
-    returning *
-  `) as ReceiptRow[]
+    returning
+      id, user_id, merchant, purchased_on, currency,
+      subtotal_cents, tax_cents, total_cents,
+      receipt_type, type_source, detected_type, detected_confidence,
+      raw_text, notes, created_at, updated_at,
+      image_url is not null as has_image
+  `) as ReceiptListRow[]
 
   return rows[0]
 }
@@ -99,7 +132,7 @@ export async function updateReceiptType(
   userId: string,
   id: string,
   receiptType: ReceiptTypeId
-): Promise<ReceiptRow | null> {
+): Promise<ReceiptListRow | null> {
   const sql = getSql()
   const rows = (await sql`
     update receipts
@@ -107,8 +140,13 @@ export async function updateReceiptType(
         type_source = 'user',
         updated_at = now()
     where user_id = ${userId} and id = ${id}
-    returning *
-  `) as ReceiptRow[]
+    returning
+      id, user_id, merchant, purchased_on, currency,
+      subtotal_cents, tax_cents, total_cents,
+      receipt_type, type_source, detected_type, detected_confidence,
+      raw_text, notes, created_at, updated_at,
+      image_url is not null as has_image
+  `) as ReceiptListRow[]
 
   return rows[0] ?? null
 }

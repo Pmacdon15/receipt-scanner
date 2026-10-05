@@ -9,13 +9,16 @@ import {
   suggestReceiptType,
   UnauthorizedError,
 } from "@/lib/dal/receipts"
+import { MAX_DATA_URL_BYTES } from "@/lib/compress-image"
 import { parseMoneyToCents } from "@/lib/money"
 import { isReceiptTypeId } from "@/lib/receipt-types"
 
 export type ScanFormState = {
   status: "idle" | "success" | "error"
   message: string
-  fieldErrors: Partial<Record<"merchant" | "total" | "receiptType", string>>
+  fieldErrors: Partial<
+    Record<"merchant" | "total" | "receiptType" | "image", string>
+  >
 }
 
 export async function scanReceiptAction(
@@ -54,6 +57,15 @@ export async function scanReceiptAction(
     }
   }
 
+  const imageDataUrl = readImageDataUrl(formData.get("imageDataUrl"))
+  if (imageDataUrl === INVALID_IMAGE) {
+    return {
+      status: "error",
+      message: "That photo could not be attached. Try scanning it again.",
+      fieldErrors: { image: "Unsupported or oversized image." },
+    }
+  }
+
   const purchasedOnRaw = String(formData.get("purchasedOn") ?? "").trim()
   const notesRaw = String(formData.get("notes") ?? "").trim()
   const rawTextRaw = String(formData.get("rawText") ?? "").trim()
@@ -69,6 +81,7 @@ export async function scanReceiptAction(
       receiptType:
         wantsExplicitType && isReceiptTypeId(rawType) ? rawType : undefined,
       rawText: rawTextRaw === "" ? null : rawTextRaw,
+      imageUrl: imageDataUrl,
       notes: notesRaw === "" ? null : notesRaw,
     })
 
@@ -125,6 +138,32 @@ export async function suggestReceiptTypeAction(input: {
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
   }
+}
+
+/** Sentinel for a present-but-rejected image, distinct from "no image sent". */
+const INVALID_IMAGE = Symbol("invalid-image")
+
+// The client compresses before posting, but a Server Action is a public POST
+// endpoint, so the payload is re-checked here rather than trusted. Only the
+// JPEG data URLs compressImage produces are accepted.
+const ALLOWED_IMAGE_PREFIX = "data:image/jpeg;base64,"
+
+// Leaves room for the client's own budget without allowing an unbounded string.
+const MAX_IMAGE_CHARS = MAX_DATA_URL_BYTES + 4096
+
+function readImageDataUrl(
+  value: FormDataEntryValue | null
+): string | null | typeof INVALID_IMAGE {
+  if (typeof value !== "string" || value === "") return null
+  if (!value.startsWith(ALLOWED_IMAGE_PREFIX)) return INVALID_IMAGE
+  if (value.length > MAX_IMAGE_CHARS) return INVALID_IMAGE
+
+  const payload = value.slice(ALLOWED_IMAGE_PREFIX.length)
+  if (payload === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) {
+    return INVALID_IMAGE
+  }
+
+  return value
 }
 
 function describeError(error: unknown): {
