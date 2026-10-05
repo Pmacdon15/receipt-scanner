@@ -41,3 +41,9 @@ next-env.d.ts
 
 # local MCP server config (contains API tokens)
 .mcp.json
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

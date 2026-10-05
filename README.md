@@ -116,3 +116,35 @@ npm run lint       # eslint
 npm run format     # prettier
 npm run typecheck  # tsc --noEmit
 ```
+
+## Testing
+
+Unit, integration and component tests run on [Bun](https://bun.sh)'s test
+runner; end-to-end tests run on Playwright. None of them need Clerk keys or a
+database.
+
+```bash
+bun run test               # everything below except e2e
+bun run test:unit          # lib helpers: classification, money, search params
+bun run test:integration   # lib/db, the DAL and server actions on real Postgres
+bun run test:components    # React components in happy-dom
+bun run test:coverage      # all Bun tests with a coverage table
+bun run test:e2e           # Playwright against a production build
+```
+
+- `tests/unit` covers pure functions.
+- `tests/integration` runs the real SQL against [PGlite](https://pglite.dev),
+  an in-process Postgres loaded with `db/schema.sql`. Clerk, `next/cache` and
+  the Neon client are swapped for fakes in `tests/helpers/server-mocks.ts`,
+  which `bunfig.toml` preloads. Tests sign in as a user with `signIn()`.
+- `tests/components` render client components with Testing Library, with the
+  server actions mocked.
+- `e2e/` covers the signed-out site on desktop and mobile. When no Clerk keys
+  are set, `playwright.config.ts` starts the app with a placeholder key so
+  every page renders signed out. Run `npx playwright install chromium` once
+  first.
+
+Always run Bun tests through the scripts: they pass `--isolate`, which keeps
+each file's module mocks and DOM globals from leaking into the next. CI runs
+lint, typecheck, the Bun suite and the e2e suite on every pull request
+(`.github/workflows/test.yml`).
