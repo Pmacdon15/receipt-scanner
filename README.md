@@ -79,6 +79,29 @@ actually set. Detection itself lives in `lib/classify-receipt.ts` and is
 keyword scoring for now; replacing it with OCR plus a model means rewriting
 that one function body, since callers only read `{ type, confidence }`.
 
+## Deploying to Vercel
+
+The Vercel CLI needs an interactive browser login first:
+
+```bash
+vercel login
+vercel link --project receipt-scanner --yes
+```
+
+Then push the three secrets to the project. Pull the values from
+`.env.local` — do not retype them:
+
+```bash
+vercel env add DATABASE_URL production
+vercel env add CLERK_SECRET_KEY production
+vercel env add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY production
+vercel deploy --prod
+```
+
+The Clerk keys in `.env.local` are **development** keys. Before a real
+production deploy, create a production instance (`clerk deploy`) and use its
+keys instead — development keys have strict usage limits.
+
 ## Scripts
 
 ```bash
