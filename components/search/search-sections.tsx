@@ -176,11 +176,31 @@ export function TypeChips({
   )
 }
 
-export function Stats({ results }: { results: ReceiptSearchResults }) {
+export function Stats({
+  results,
+  exportHref,
+}: {
+  results: ReceiptSearchResults
+  /** The documents page for these results, to download them. */
+  exportHref?: string
+}) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Stat label="Matching receipts" value={String(results.matchCount)} />
-      <Stat label="Matching total" value={formatMoney(results.matchTotalCents)} />
+    <div className="flex flex-col gap-2">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Stat label="Matching receipts" value={String(results.matchCount)} />
+        <Stat
+          label="Matching total"
+          value={formatMoney(results.matchTotalCents)}
+        />
+      </div>
+      {exportHref && results.matchCount > 0 && (
+        <Link
+          href={exportHref}
+          className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Download these as a PDF, spreadsheet or ZIP
+        </Link>
+      )}
     </div>
   )
 }

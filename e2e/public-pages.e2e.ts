@@ -80,3 +80,21 @@ test("an unknown page returns 404", async ({ page }) => {
   const response = await page.goto("/no-such-page")
   expect(response?.status()).toBe(404)
 })
+
+test.describe("documents page", () => {
+  test("asks a signed-out visitor to sign in", async ({ page }) => {
+    await page.goto("/documents")
+
+    await expect(page).toHaveTitle(/Documents/)
+    await expect(
+      page.getByRole("heading", { name: "Sign in to see your documents" })
+    ).toBeVisible()
+  })
+
+  test("the downloads refuse a signed-out request", async ({ request }) => {
+    for (const kind of ["pdf", "xlsx", "zip"]) {
+      const response = await request.get(`/api/documents/${kind}`)
+      expect(response.status()).toBe(401)
+    }
+  })
+})

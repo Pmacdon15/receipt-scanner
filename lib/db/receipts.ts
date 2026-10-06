@@ -494,3 +494,59 @@ export async function searchReceipts(
     })),
   }
 }
+
+/**
+ * The most receipts one export covers. A report or download over more than
+ * this asks the user to narrow the date range rather than building a file
+ * that takes minutes to produce.
+ */
+export const EXPORT_LIMIT = 5_000
+
+export type ReceiptExportRow = ReceiptListRow & {
+  /** Only filled when the caller asked for image pathnames (the ZIP export). */
+  image_url?: string | null
+}
+
+export type ReceiptExportResult = {
+  rows: ReceiptExportRow[]
+  /** True when more receipts matched than EXPORT_LIMIT; rows holds the first ones. */
+  truncated: boolean
+}
+
+/**
+ * Every receipt matching the same filters search uses, oldest first, for the
+ * documents page and its downloads.
+ *
+ * raw_text is left out (it can be 20KB a receipt and no export shows it).
+ * image_url is returned only when `withImages` is set, which only the ZIP
+ * route does: it never reaches a client component.
+ */
+export async function selectReceiptsForExport(
+  scope: ReceiptScope,
+  filters: ReceiptSearchFilters = {},
+  { withImages = false }: { withImages?: boolean } = {}
+): Promise<ReceiptExportResult> {
+  const sql = getSql()
+  const { where, params } = buildWhere(scope, filters, { includeTypes: true })
+
+  // Columns and ORDER BY are fixed strings; every user value is a parameter.
+  // One extra row tells a full export apart from a truncated one.
+  const rows = (await sql.query(
+    `select
+       id, user_id, org_id, merchant, purchased_on, currency,
+       subtotal_cents, tax_cents, total_cents,
+       receipt_type, type_source, detected_type, detected_confidence, splits,
+       null::text as raw_text, notes, created_at, updated_at,
+       image_url is not null as has_image
+       ${withImages ? ", image_url" : ""}
+     from receipts where ${where}
+     order by purchased_on asc nulls last, created_at asc
+     limit ${EXPORT_LIMIT + 1}`,
+    params
+  )) as ReceiptExportRow[]
+
+  return {
+    rows: rows.slice(0, EXPORT_LIMIT),
+    truncated: rows.length > EXPORT_LIMIT,
+  }
+}

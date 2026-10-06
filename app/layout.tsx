@@ -48,7 +48,7 @@ export default function RootLayout({
               <div className="flex min-h-dvh flex-col">
                 <SiteHeader />
                 <main className="flex-1">{children}</main>
-                <footer className="border-t py-6">
+                <footer className="border-t py-6 print:hidden">
                   <div className="mx-auto w-full max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
                     {site.name} — {site.tagline}
                   </div>
