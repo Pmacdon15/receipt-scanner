@@ -31,21 +31,6 @@ test.describe("home page", () => {
     }
   })
 
-  test("the photo announcement leads to the scanner sign-in prompt", async ({
-    page,
-  }) => {
-    await page.goto("/")
-
-    await page
-      .getByRole("link", { name: /Snap receipts straight from your phone/ })
-      .click()
-
-    await expect(page).toHaveURL(/\/scan$/)
-    await expect(
-      page.getByRole("heading", { name: "Sign in to scan receipts" })
-    ).toBeVisible()
-  })
-
   test("the search call to action leads to the search sign-in prompt", async ({
     page,
   }) => {

@@ -107,24 +107,8 @@ export default function HomePage() {
         <div className="relative mx-auto w-full max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:pt-24 lg:pb-24">
           <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
             <div className="flex flex-col items-start gap-7">
-              <Link
-                href="/scan"
-                className="group inline-flex animate-home-rise items-center gap-2 rounded-full border bg-background/70 py-1 pr-3 pl-1 text-sm backdrop-blur transition-colors hover:bg-muted"
-              >
-                <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white dark:bg-emerald-500 dark:text-emerald-950">
-                  New
-                </span>
-                <span className="text-muted-foreground group-hover:text-foreground">
-                  Snap receipts straight from your phone
-                </span>
-                <ArrowRightIcon className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              </Link>
-
-              <h1 className="animate-home-rise text-5xl leading-[1.02] font-semibold tracking-tighter text-balance [animation-delay:80ms] sm:text-6xl lg:text-7xl">
-                Receipts in.{" "}
-                <span className="bg-linear-to-r from-emerald-600 via-teal-500 to-sky-500 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-300 dark:to-sky-400">
-                  Clean books out.
-                </span>
+              <h1 className="animate-home-rise text-5xl leading-[1.02] font-semibold tracking-tighter text-balance sm:text-6xl lg:text-7xl">
+                Receipts in. Clean books out.
               </h1>
 
               <p className="max-w-xl animate-home-rise text-lg text-pretty text-muted-foreground [animation-delay:160ms] sm:text-xl">
