@@ -74,6 +74,7 @@ describe("insertReceipt", () => {
       typeSource: "user",
       detectedType: "grocery",
       detectedConfidence: 0.76,
+      splits: null,
       rawText: "milk eggs",
       imageUrl: null,
       notes: "weekly shop",
