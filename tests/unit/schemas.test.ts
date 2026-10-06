@@ -6,6 +6,7 @@ import {
   imageUploadFileSchema,
   imageUploadResponseSchema,
   newReceiptSchema,
+  primarySplitType,
   receiptImagePathnameSchema,
   scanReceiptFormSchema,
 } from "@/lib/schemas"
@@ -148,5 +149,112 @@ describe("schemas", () => {
       })
       expect(result.success).toBe(true)
     })
+  })
+})
+
+describe("split receipts", () => {
+  const base = { merchant: "Costco", total: "42.17" }
+
+  test("parses a split that adds up to the total", () => {
+    const result = scanReceiptFormSchema.safeParse({
+      ...base,
+      splits: JSON.stringify([
+        { type: "grocery", amount: "30.00" },
+        { type: "hardware", amount: "12.17" },
+      ]),
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.splits).toEqual([
+        { type: "grocery", amountCents: 3000 },
+        { type: "hardware", amountCents: 1217 },
+      ])
+    }
+  })
+
+  test("an empty split means one category", () => {
+    const result = scanReceiptFormSchema.safeParse({ ...base, splits: "" })
+    expect(result.success && result.data.splits).toBeNull()
+  })
+
+  test("reports a split that does not add up, on the splits field", () => {
+    const result = scanReceiptFormSchema.safeParse({
+      ...base,
+      splits: JSON.stringify([
+        { type: "grocery", amount: "30.00" },
+        { type: "hardware", amount: "10.00" },
+      ]),
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0].path[0]).toBe("splits")
+      expect(result.error.issues[0].message).toContain("short")
+    }
+  })
+
+  test("rejects one-part splits, repeated categories and unknown ones", () => {
+    const parse = (rows: unknown) =>
+      scanReceiptFormSchema.safeParse({ ...base, splits: JSON.stringify(rows) })
+        .success
+
+    expect(parse([{ type: "grocery", amount: "42.17" }])).toBe(false)
+    expect(
+      parse([
+        { type: "grocery", amount: "30.00" },
+        { type: "grocery", amount: "12.17" },
+      ])
+    ).toBe(false)
+    expect(
+      parse([
+        { type: "grocery", amount: "30.00" },
+        { type: "nope", amount: "12.17" },
+      ])
+    ).toBe(false)
+  })
+
+  test("newReceiptSchema checks the split against totalCents", () => {
+    const receipt = {
+      merchant: "Costco",
+      purchasedOn: null,
+      currency: "CAD",
+      subtotalCents: null,
+      taxCents: null,
+      totalCents: 4217,
+      rawText: null,
+      notes: null,
+    }
+    expect(
+      newReceiptSchema.safeParse({
+        ...receipt,
+        splits: [
+          { type: "grocery", amountCents: 3000 },
+          { type: "hardware", amountCents: 1217 },
+        ],
+      }).success
+    ).toBe(true)
+    expect(
+      newReceiptSchema.safeParse({
+        ...receipt,
+        splits: [
+          { type: "grocery", amountCents: 3000 },
+          { type: "hardware", amountCents: 1000 },
+        ],
+      }).success
+    ).toBe(false)
+  })
+
+  test("primarySplitType picks the largest part, first on a tie", () => {
+    expect(
+      primarySplitType([
+        { type: "hardware", amountCents: 1217 },
+        { type: "grocery", amountCents: 3000 },
+      ])
+    ).toBe("grocery")
+    expect(
+      primarySplitType([
+        { type: "office", amountCents: 500 },
+        { type: "grocery", amountCents: 500 },
+      ])
+    ).toBe("office")
   })
 })

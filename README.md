@@ -79,10 +79,30 @@ Every receipt stores three things about its category:
 - `detected_type` / `detected_confidence` — what detection suggested, kept even
   when the user overrides it.
 
+- `splits` — when one receipt covers several categories, how much went to
+  each: `[{ "type": "grocery", "amountCents": 3000 }, ...]`. The parts must add
+  up to `total_cents`, and `receipt_type` is set to the largest part so
+  single-type queries keep working. Null for a one-category receipt. Search's
+  type filter matches any part, and the type facets count each part's share.
+
 That means the UI can always show what was auto-selected alongside what is
-actually set. Detection itself lives in `lib/classify-receipt.ts` and is
-keyword scoring for now; replacing it with OCR plus a model means rewriting
-that one function body, since callers only read `{ type, confidence }`.
+actually set.
+
+### Detection
+
+- **From a photo** — `lib/extract-receipt.ts` sends the uploaded photo to the
+  Claude API (vision) and asks for merchant, date, subtotal, tax, total, the
+  receipt text, a category, and — when the line items span categories — a
+  split with an amount per category. The scan form uses that only to pre-fill
+  fields the user has left empty; every value, including detected categories
+  and amounts, stays editable before saving. Set `ANTHROPIC_API_KEY` to turn it
+  on; without it the scan form works as before.
+- **From text** — `lib/classify-receipt.ts` scores keywords in the merchant and
+  receipt text. It is used when there is no photo reading.
+
+Saved receipts can be split, or have their split corrected, from the scan
+page's receipt list (the split button on each row). Picking a single type from
+the row's menu clears the split.
 
 ## Deploying to Vercel
 

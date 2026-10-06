@@ -2,6 +2,7 @@ import Link from "next/link"
 import { SearchXIcon, SparklesIcon, UserIcon } from "lucide-react"
 
 import { ReceiptPhotoButton } from "@/components/receipts/receipt-photo-sheet"
+import { SplitSummary } from "@/components/receipts/split-summary"
 import { Badge } from "@/components/ui/badge"
 import type { SearchedReceipt } from "@/lib/dal/receipts"
 import { formatDate, formatMoney } from "@/lib/money"
@@ -55,6 +56,12 @@ export function SearchResults({
                   {receipt.notes}
                 </p>
               )}
+              {receipt.splits && (
+                <SplitSummary
+                  splits={receipt.splits}
+                  currency={receipt.currency}
+                />
+              )}
             </div>
 
             <div className="flex items-center gap-2 sm:flex-col sm:items-end">
@@ -76,7 +83,9 @@ export function SearchResults({
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
-                  {receiptTypeLabel(receipt.receiptType)}
+                  {receipt.splits
+                    ? `Split · ${receipt.splits.length} categories`
+                    : receiptTypeLabel(receipt.receiptType)}
                 </Badge>
                 <Badge
                   variant="outline"

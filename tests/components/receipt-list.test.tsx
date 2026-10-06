@@ -14,6 +14,12 @@ const actions = {
   setReceiptTypeAction: mock<
     (id: string, type: string) => Promise<ActionResult>
   >(async () => ({ status: "success", message: "Type updated." })),
+  setReceiptSplitsAction: mock<
+    (
+      id: string,
+      splits: { type: string; amountCents: number }[]
+    ) => Promise<ActionResult>
+  >(async () => ({ status: "success", message: "Split updated." })),
 }
 const toast = { success: mock(), error: mock() }
 
@@ -25,6 +31,7 @@ const { ReceiptList } = await import("@/components/scanner/receipt-list")
 beforeEach(() => {
   actions.deleteReceiptAction.mockClear()
   actions.setReceiptTypeAction.mockClear()
+  actions.setReceiptSplitsAction.mockClear()
   toast.success.mockClear()
   toast.error.mockClear()
 })
@@ -104,5 +111,46 @@ describe("ReceiptList", () => {
         name: "View the photo of the receipt from No Photo",
       })
     ).toBeNull()
+  })
+
+  test("shows a split receipt's parts", () => {
+    const view = render(
+      <ReceiptList
+        receipts={[
+          makeReceipt({
+            merchant: "Costco",
+            totalCents: 4217,
+            splits: [
+              { type: "grocery", amountCents: 3000 },
+              { type: "hardware", amountCents: 1217 },
+            ],
+          }),
+        ]}
+      />
+    )
+
+    expect(view.getByText(/Hardware & Supplies/)).toBeTruthy()
+  })
+
+  test("edits the detected categories and amounts of a saved receipt", async () => {
+    const receipt = makeReceipt({ merchant: "Costco", totalCents: 4217 })
+    const view = render(<ReceiptList receipts={[receipt]} />)
+
+    fireEvent.click(
+      view.getByRole("button", {
+        name: "Split or edit the categories of the receipt from Costco",
+      })
+    )
+
+    // Starts as the current category with the whole total, plus an empty part.
+    const first = view.getByLabelText("Amount for part 1") as HTMLInputElement
+    expect(first.value).toBe("42.17")
+
+    fireEvent.change(first, { target: { value: "30.00" } })
+    fireEvent.click(view.getByRole("button", { name: "Save split" }))
+
+    // Part 2 has no category yet, so nothing is sent.
+    expect(actions.setReceiptSplitsAction).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })

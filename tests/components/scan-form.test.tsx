@@ -21,6 +21,11 @@ const actions = {
   suggestReceiptTypeAction: mock<
     (input: { merchant?: string; rawText?: string }) => Promise<Suggestion>
   >(async () => ({ status: "success", type: "fuel", confidence: 0.76 })),
+  extractReceiptAction: mock(async () => ({
+    status: "success" as const,
+    recognised: false,
+    fields: {},
+  })),
 }
 const toast = { success: mock(), error: mock() }
 
@@ -147,5 +152,38 @@ describe("ScanForm", () => {
     expect(scanTab.getAttribute("aria-selected")).toBe("true")
     fireEvent.click(manualTab)
     expect(manualTab.getAttribute("aria-selected")).toBe("true")
+  })
+
+  test("posts a split across categories with its amounts", async () => {
+    const view = render(<ScanForm />)
+
+    fireEvent.change(input(view, "Merchant"), { target: { value: "Costco" } })
+    fireEvent.change(input(view, "Total"), { target: { value: "42.17" } })
+    fireEvent.click(
+      view.getByRole("button", { name: /Split across categories/ })
+    )
+
+    // The first part starts with the whole total; move some to the second.
+    expect(input(view, "Amount for part 1").value).toBe("42.17")
+    fireEvent.change(input(view, "Amount for part 1"), {
+      target: { value: "30.00" },
+    })
+    expect(view.getByText(/\$12\.17 left to assign/)).toBeTruthy()
+    fireEvent.change(input(view, "Amount for part 2"), {
+      target: { value: "12.17" },
+    })
+    expect(view.getByText(/Adds up to/)).toBeTruthy()
+
+    const form = view
+      .getByRole("button", { name: "Save receipt" })
+      .closest("form")!
+    const splits = new FormData(form).get("splits")
+    expect(JSON.parse(String(splits))).toEqual([
+      { type: "", amount: "30.00" },
+      { type: "", amount: "12.17" },
+    ])
+    expect(view.getByText("Saving as").textContent).toContain(
+      "a split across 2 categories"
+    )
   })
 })
