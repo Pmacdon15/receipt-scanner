@@ -22,6 +22,7 @@ import {
   saveBlob,
 } from "@/lib/documents/download-client"
 import {
+  archiveBlob,
   buildReceiptArchive,
   type ArchiveManifest,
   type ArchiveOrganize,
@@ -130,10 +131,7 @@ export function DownloadPanel({
         signal,
       })
 
-      saveBlob(
-        new Blob(archive.parts as BlobPart[], { type: "application/zip" }),
-        manifest.fileName
-      )
+      saveBlob(archiveBlob(archive), manifest.fileName)
 
       const notIncluded = archive.missing.length + archive.skipped.length
       if (notIncluded > 0) {

@@ -267,6 +267,15 @@ export async function buildReceiptArchive({
   return { parts, included, missing, skipped }
 }
 
+/**
+ * The archive as a file to save. The cast is needed because a plain
+ * Uint8Array may sit on a SharedArrayBuffer, which the Blob typings (since
+ * TypeScript 5.7) refuse; the writer only ever makes ordinary ArrayBuffers.
+ */
+export function archiveBlob(archive: Pick<BuiltArchive, "parts">): Blob {
+  return new Blob(archive.parts as BlobPart[], { type: "application/zip" })
+}
+
 /** Noon UTC on the purchase date, so the unzipped file sorts by it. */
 function photoDate(purchasedOn: string | null): Date | null {
   if (!purchasedOn) return null

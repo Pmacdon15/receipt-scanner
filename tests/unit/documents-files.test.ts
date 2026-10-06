@@ -5,6 +5,7 @@ import { makeSearchedReceipt } from "../helpers/fixtures"
 import { readZip } from "../helpers/zip"
 
 import {
+  archiveBlob,
   archivePhotoPaths,
   archiveReadme,
   buildArchiveManifest,
@@ -247,7 +248,7 @@ describe("receipt archive", () => {
       onProgress: (p) => progress.push(p.done),
     })
 
-    const bytes = new Uint8Array(await new Blob(archive.parts).arrayBuffer())
+    const bytes = new Uint8Array(await archiveBlob(archive).arrayBuffer())
     const files = readZip(bytes)
     const root = "receipts-2025-01-01-to-2025-12-31/"
     expect([...files.keys()]).toEqual([
@@ -299,7 +300,7 @@ describe("receipt archive", () => {
     })
 
     const names = [
-      ...readZip(new Uint8Array(await new Blob(archive.parts).arrayBuffer())).keys(),
+      ...readZip(new Uint8Array(await archiveBlob(archive).arrayBuffer())).keys(),
     ].filter((n) => n.endsWith(".jpg"))
     expect(names).toEqual(manifest.photos.map((p) => `${manifest.rootName}/${p.path}`))
     expect(peak).toBeLessThanOrEqual(3)
