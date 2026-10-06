@@ -55,7 +55,7 @@ const NO_DECOMPOSITION: Record<string, string> = {
 export function toWinAnsi(value: string): string {
   let out = ""
   for (const ch of value.replace(/[\r\n\t]+/g, " ")) {
-    const code = ch.codePointAt(0)!
+    const code = ch.codePointAt(0) ?? 0
     if (
       (code >= 0x20 && code <= 0x7e) ||
       (code >= 0xa0 && code <= 0xff) ||

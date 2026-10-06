@@ -222,7 +222,7 @@ export async function createReceipt(raw: NewReceipt): Promise<Receipt> {
     subtotalCents: input.subtotalCents,
     taxCents: input.taxCents,
     totalCents: input.totalCents,
-    receiptType: userPicked ? chosenType! : detected.type,
+    receiptType: chosenType ?? detected.type,
     typeSource: userPicked ? "user" : "auto",
     detectedType: detected.confidence > 0 ? detected.type : null,
     detectedConfidence: detected.confidence > 0 ? detected.confidence : null,
@@ -338,9 +338,11 @@ export type ReceiptSearchResults = {
 async function resolveSearchScope(requested: SearchScope) {
   const userId = await requireUserId()
   const orgId = await getActiveOrgId()
-  const scope: SearchScope = requested === "org" && orgId ? "org" : "mine"
   const where: ReceiptScope =
-    scope === "org" ? { kind: "org", orgId: orgId! } : { kind: "user", userId }
+    requested === "org" && orgId
+      ? { kind: "org", orgId }
+      : { kind: "user", userId }
+  const scope: SearchScope = where.kind === "org" ? "org" : "mine"
   return { userId, orgId, scope, where }
 }
 

@@ -150,6 +150,7 @@ bun run build      # production build
 bun run lint       # biome check --write: lint, format, sort imports and
                    # Tailwind classes, remove unused imports
 bun run lint:ci    # same checks, no writes (what CI runs)
+                   # both fail on any warning
 bun run format     # biome format --write
 bun run typecheck  # tsc --noEmit
 ```

@@ -34,6 +34,14 @@ mock.module("sonner", () => ({ toast }))
 
 const { ScanForm } = await import("@/components/scanner/scan-form")
 
+function saveForm(view: ReturnType<typeof render>): HTMLFormElement {
+  const form = view
+    .getByRole("button", { name: "Save receipt" })
+    .closest("form")
+  if (!form) throw new Error("Save receipt button is not inside a form")
+  return form
+}
+
 beforeEach(() => {
   actions.scanReceiptAction.mockClear()
   actions.suggestReceiptTypeAction.mockClear()
@@ -107,9 +115,7 @@ describe("ScanForm", () => {
 
     fireEvent.change(input(view, "Merchant"), { target: { value: "Shell" } })
     fireEvent.change(input(view, "Total"), { target: { value: "54.10" } })
-    fireEvent.submit(
-      view.getByRole("button", { name: "Save receipt" }).closest("form")!
-    )
+    fireEvent.submit(saveForm(view))
 
     await waitFor(() =>
       expect(view.getByText("Enter the receipt total.")).toBeTruthy()
@@ -126,9 +132,7 @@ describe("ScanForm", () => {
     fireEvent.change(input(view, "Merchant"), { target: { value: "Shell" } })
     fireEvent.change(input(view, "Total"), { target: { value: "54.10" } })
     fireEvent.change(input(view, "Notes"), { target: { value: "road trip" } })
-    fireEvent.submit(
-      view.getByRole("button", { name: "Save receipt" }).closest("form")!
-    )
+    fireEvent.submit(saveForm(view))
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Saved Shell.")
@@ -174,9 +178,7 @@ describe("ScanForm", () => {
     })
     expect(view.getByText(/Adds up to/)).toBeTruthy()
 
-    const form = view
-      .getByRole("button", { name: "Save receipt" })
-      .closest("form")!
+    const form = saveForm(view)
     const splits = new FormData(form).get("splits")
     expect(JSON.parse(String(splits))).toEqual([
       { type: "", amount: "30.00" },

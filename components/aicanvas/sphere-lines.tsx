@@ -78,8 +78,12 @@ export default function SphereLines() {
   }, [])
 
   useEffect(() => {
-    const canvas = canvasRef.current!
-    const ctx = canvas.getContext("2d")!
+    const canvasEl = canvasRef.current
+    const context = canvasEl?.getContext("2d")
+    if (!canvasEl || !context) return
+    // Rebound as non-null so the hoisted build() and frame() see the narrowing.
+    const canvas: HTMLCanvasElement = canvasEl
+    const ctx: CanvasRenderingContext2D = context
 
     let cw = 0,
       ch = 0
@@ -238,7 +242,7 @@ export default function SphereLines() {
     frame()
 
     const ro = new ResizeObserver(build)
-    ro.observe(canvas.parentElement!)
+    if (canvas.parentElement) ro.observe(canvas.parentElement)
 
     return () => {
       alive = false
