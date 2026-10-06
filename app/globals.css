@@ -152,3 +152,62 @@
     opacity: 0.5;
   }
 }
+
+/* Home page motion. The scan beam sweeps the hero receipt, extracted fields
+   rise in after it, and the category rail drifts sideways. Each one stops
+   for prefers-reduced-motion, leaving the finished state on screen. */
+@theme inline {
+  --animate-home-beam: home-beam 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-home-rise: home-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-home-marquee: home-marquee 40s linear infinite;
+}
+
+@keyframes home-beam {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-home-beam {
+    animation: none;
+    opacity: 0;
+  }
+  .animate-home-rise {
+    animation: none;
+  }
+  .animate-home-marquee {
+    animation: none;
+  }
+}
