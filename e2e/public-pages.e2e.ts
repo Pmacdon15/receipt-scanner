@@ -10,11 +10,11 @@ test.describe("home page", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Stop sorting receipts by hand.",
+        name: "Receipts in. Clean books out.",
       })
     ).toBeVisible()
     await expect(
-      page.getByRole("heading", { name: "Three steps, start to filed" })
+      page.getByRole("heading", { name: "Clear the shoebox this month." })
     ).toBeVisible()
   })
 
@@ -22,26 +22,43 @@ test.describe("home page", () => {
     await page.goto("/")
 
     const section = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Categories built in" }),
+      hasText: `${RECEIPT_TYPES.length} categories built in`,
     })
+    // The rail renders the list twice for its loop; the copy is aria-hidden.
+    const list = section.locator("ul:not([aria-hidden])")
     for (const type of RECEIPT_TYPES) {
-      await expect(section.getByText(type.label, { exact: true })).toBeVisible()
+      await expect(list.getByText(type.label, { exact: true })).toBeVisible()
     }
   })
 
-  test("the scanner call to action leads to the sign-in prompt", async ({
+  test("the photo announcement leads to the scanner sign-in prompt", async ({
+    page,
+  }) => {
+    await page.goto("/")
+
+    await page
+      .getByRole("link", { name: /Snap receipts straight from your phone/ })
+      .click()
+
+    await expect(page).toHaveURL(/\/scan$/)
+    await expect(
+      page.getByRole("heading", { name: "Sign in to scan receipts" })
+    ).toBeVisible()
+  })
+
+  test("the search call to action leads to the search sign-in prompt", async ({
     page,
   }) => {
     await page.goto("/")
 
     // A Base UI Button rendered as a link, so it carries role="button".
-    const cta = page.getByRole("button", { name: "See the scanner" })
-    await expect(cta).toHaveAttribute("href", "/scan")
+    const cta = page.getByRole("button", { name: "Search receipts" })
+    await expect(cta).toHaveAttribute("href", "/search")
     await cta.click()
 
-    await expect(page).toHaveURL(/\/scan$/)
+    await expect(page).toHaveURL(/\/search$/)
     await expect(
-      page.getByRole("heading", { name: "Sign in to scan receipts" })
+      page.getByRole("heading", { name: "Sign in to search receipts" })
     ).toBeVisible()
   })
 })
