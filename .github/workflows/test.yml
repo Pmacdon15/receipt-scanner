@@ -9,31 +9,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Bun installs and runs everything. Node is still set up because `next build`
+# and `next start` run on Node.
+#
+# TODO: switch `bun install` to `bun install --frozen-lockfile` once bun.lock
+# has been regenerated locally with `bun install` and committed.
+
 jobs:
   checks:
     name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run lint
+      - run: bun run typecheck
 
   test:
     name: Unit, integration and component tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
       - uses: oven-sh/setup-bun@v2
-      - run: npm ci
+      - run: bun install
       - run: bun run test:coverage
 
   e2e:
@@ -45,10 +44,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - uses: oven-sh/setup-bun@v2
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: bun install
+      - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

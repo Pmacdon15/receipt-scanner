@@ -20,6 +20,7 @@ import {
   InvalidInputError,
   removeReceipt,
   searchReceipts,
+  searchReceiptsWithSuggestions,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
@@ -369,5 +370,80 @@ describe("searchReceipts", () => {
       page: 2.7,
     })
     expect(odd).toMatchObject({ pageSize: 25, page: 2 })
+  })
+})
+
+describe("searchReceiptsWithSuggestions", () => {
+  async function seed() {
+    signIn("user_a", "org_1")
+    await createReceipt(newReceipt({ merchant: "Costco", totalCents: 8000 }))
+    await createReceipt(newReceipt({ merchant: "Costco Gas", totalCents: 50 }))
+    signIn("user_b", "org_1")
+    await createReceipt(newReceipt({ merchant: "Costa Coffee" }))
+    signIn("user_b", null)
+    await createReceipt(newReceipt({ merchant: "Costume Shop" }))
+  }
+
+  test("refuses a signed-out caller", async () => {
+    signIn(null)
+    await expect(
+      searchReceiptsWithSuggestions({ scope: "mine", query: "cost" })
+    ).rejects.toBeInstanceOf(UnauthorizedError)
+  })
+
+  test("returns the same results as searchReceipts plus merchant suggestions", async () => {
+    await seed()
+    signIn("user_a", "org_1")
+    const params = { scope: "mine" as const, query: "cost" }
+
+    const result = await searchReceiptsWithSuggestions(params)
+    const { suggestions, ...results } = result
+
+    expect(results).toEqual(await searchReceipts(params))
+    expect(suggestions).toEqual([
+      { merchant: "Costco", receiptCount: 1 },
+      { merchant: "Costco Gas", receiptCount: 1 },
+    ])
+  })
+
+  test("org scope suggests teammates' merchants, never another org's", async () => {
+    await seed()
+    signIn("user_a", "org_1")
+
+    const result = await searchReceiptsWithSuggestions({
+      scope: "org",
+      query: "cost",
+    })
+
+    expect(result.scope).toBe("org")
+    expect(result.suggestions.map((s) => s.merchant).sort()).toEqual([
+      "Costa Coffee",
+      "Costco",
+      "Costco Gas",
+    ])
+  })
+
+  test("org scope falls back to mine when no organization is active", async () => {
+    await seed()
+    signIn("user_b", null)
+
+    const result = await searchReceiptsWithSuggestions({
+      scope: "org",
+      query: "cost",
+    })
+
+    expect(result.scope).toBe("mine")
+    expect(result.suggestions.map((s) => s.merchant).sort()).toEqual([
+      "Costa Coffee",
+      "Costume Shop",
+    ])
+  })
+
+  test("has no suggestions without a query", async () => {
+    await seed()
+    signIn("user_a", "org_1")
+    const result = await searchReceiptsWithSuggestions({ scope: "mine" })
+    expect(result.suggestions).toEqual([])
+    expect(result.matchCount).toBe(2)
   })
 })

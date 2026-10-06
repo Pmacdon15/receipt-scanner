@@ -17,9 +17,9 @@ record you can report on.
 ## Getting started
 
 ```bash
-npm install
+bun install
 cp .env.example .env.local   # then fill in the values
-npm run dev
+bun run dev
 ```
 
 Pull the Clerk keys with the Clerk CLI instead of copying them by hand:
@@ -110,11 +110,11 @@ keys instead — development keys have strict usage limits.
 ## Scripts
 
 ```bash
-npm run dev        # dev server
-npm run build      # production build
-npm run lint       # eslint
-npm run format     # prettier
-npm run typecheck  # tsc --noEmit
+bun run dev        # dev server
+bun run build      # production build
+bun run lint       # eslint
+bun run format     # prettier
+bun run typecheck  # tsc --noEmit
 ```
 
 ## Testing
@@ -141,7 +141,7 @@ bun run test:e2e           # Playwright against a production build
   server actions mocked.
 - `e2e/` covers the signed-out site on desktop and mobile. When no Clerk keys
   are set, `playwright.config.ts` starts the app with a placeholder key so
-  every page renders signed out. Run `npx playwright install chromium` once
+  every page renders signed out. Run `bunx playwright install chromium` once
   first.
 
 Always run Bun tests through the scripts: they pass `--isolate`, which keeps

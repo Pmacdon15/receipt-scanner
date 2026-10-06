@@ -4,8 +4,13 @@ import type { ReceiptSearchParams } from "@/lib/dal/receipts"
 import {
   formValue,
   hasActiveFilters,
+  nextSearchParams,
   parseSearchParams,
+  rawSearchParamsFrom,
+  searchApiHref,
   searchHref,
+  searchPageHref,
+  searchQueryString,
   toggleType,
 } from "@/lib/search-params"
 
@@ -204,5 +209,81 @@ describe("formValue", () => {
     expect(
       formValue({ ...EMPTY, minTotalCents: 0, maxTotalCents: 2550 })
     ).toMatchObject({ min: "0.00", max: "25.50" })
+  })
+})
+
+describe("searchQueryString", () => {
+  test("is the same for searches that mean the same thing", () => {
+    expect(
+      searchQueryString({
+        ...EMPTY,
+        query: "  tea  ",
+        receiptTypes: ["travel", "fuel"],
+        sort: "newest",
+        page: 1,
+      })
+    ).toBe(
+      searchQueryString({
+        ...EMPTY,
+        query: "tea",
+        receiptTypes: ["fuel", "travel"],
+      })
+    )
+  })
+
+  test("is empty for the default search", () => {
+    expect(searchQueryString(EMPTY)).toBe("")
+  })
+})
+
+describe("nextSearchParams", () => {
+  test("resets the page unless the page is what changed", () => {
+    const current = { ...EMPTY, query: "tea", page: 4 }
+    expect(nextSearchParams(current, { sort: "oldest" })).toEqual({
+      ...EMPTY,
+      query: "tea",
+      sort: "oldest",
+      page: undefined,
+    })
+    expect(nextSearchParams(current, { page: 5 }).page).toBe(5)
+  })
+})
+
+describe("searchPageHref and searchApiHref", () => {
+  test("keep the page number", () => {
+    const params = { ...EMPTY, query: "tea", page: 3 }
+    expect(searchPageHref(params)).toBe("/search?q=tea&page=3")
+    expect(searchApiHref(params)).toBe("/api/receipts/search?q=tea&page=3")
+  })
+
+  test("use the bare path for the default search", () => {
+    expect(searchPageHref(EMPTY)).toBe("/search")
+    expect(searchApiHref(EMPTY)).toBe("/api/receipts/search")
+  })
+})
+
+describe("rawSearchParamsFrom", () => {
+  test("keeps repeated keys as lists and single keys as strings", () => {
+    expect(
+      rawSearchParamsFrom(new URLSearchParams("q=tea&type=fuel&type=travel"))
+    ).toEqual({ q: "tea", type: ["fuel", "travel"] })
+  })
+
+  test("round-trips through the API URL and the page parser", () => {
+    const params: ReceiptSearchParams = {
+      scope: "org",
+      query: "gas & go",
+      receiptTypes: ["fuel", "travel"],
+      purchasedFrom: "2025-01-01",
+      purchasedTo: "2025-02-01",
+      minTotalCents: 500,
+      maxTotalCents: 12345,
+      sort: "lowest",
+      page: 2,
+    }
+    const url = new URL(searchApiHref(params), "http://x")
+    expect(parseSearchParams(rawSearchParamsFrom(url.searchParams))).toEqual(
+      params
+    )
   })
 })

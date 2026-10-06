@@ -24,7 +24,7 @@ const PRIVATE = { "Cache-Control": "private, no-store" }
 
 export async function GET(request: NextRequest) {
   const params = parseSearchParams(
-    rawSearchParamsFrom(request.nextUrl.searchParams)
+    rawSearchParamsFrom(new URL(request.url).searchParams)
   )
 
   try {
