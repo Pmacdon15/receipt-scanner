@@ -1,6 +1,6 @@
-import type { Metadata } from "next"
 import { auth } from "@clerk/nextjs/server"
 import { LockIcon } from "lucide-react"
+import type { Metadata } from "next"
 
 import {
   ReturnSignInButton,
@@ -31,7 +31,7 @@ export default async function ScanPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="font-semibold text-3xl tracking-tight">
           Receipt scanner
         </h1>
         <p className="text-pretty text-muted-foreground">
@@ -51,10 +51,10 @@ export default async function ScanPage() {
 
         <section className="flex flex-col gap-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h2 className="font-semibold text-xl tracking-tight">
               Recent receipts
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Showing {receipts.length}
             </p>
           </div>
@@ -70,8 +70,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-muted-foreground text-sm">{label}</p>
+        <p className="mt-1 font-semibold text-2xl tabular-nums">{value}</p>
       </CardContent>
     </Card>
   )
@@ -84,7 +84,7 @@ function SignedOutPrompt() {
         <LockIcon className="size-5" />
       </span>
 
-      <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+      <h1 className="mt-5 font-semibold text-2xl tracking-tight">
         Sign in to scan receipts
       </h1>
       <p className="mt-2 text-pretty text-muted-foreground">

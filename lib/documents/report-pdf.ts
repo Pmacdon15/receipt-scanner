@@ -1,9 +1,9 @@
 import {
   PDFDocument,
-  StandardFonts,
-  rgb,
   type PDFFont,
   type PDFPage,
+  rgb,
+  StandardFonts,
 } from "pdf-lib"
 
 import {
@@ -32,9 +32,7 @@ const PANEL = rgb(0.96, 0.96, 0.97)
 const BAR = rgb(0.25, 0.27, 0.32)
 
 // Windows-1252 characters above 0x7F that are not Latin-1 code points.
-const CP1252_EXTRA = new Set(
-  "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ".split("")
-)
+const CP1252_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ".split(""))
 
 // Letters with no Unicode decomposition to fold them by.
 const NO_DECOMPOSITION: Record<string, string> = {
@@ -71,7 +69,11 @@ export function toWinAnsi(value: string): string {
       .replace(/[\u0300-\u036f]/g, "")
     if (/^[\x20-\x7e]+$/.test(folded)) out += folded
     // Emoji and their joiners carry no meaning on a receipt line; drop them.
-    else if (!/[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\ufe0f]/u.test(ch)) out += "?"
+    else if (
+      // biome-ignore lint/suspicious/noMisleadingCharacterClass: tests one code point at a time, so a lone joiner is a valid match.
+      !/[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\ufe0f]/u.test(ch)
+    )
+      out += "?"
   }
   return out
 }
@@ -148,7 +150,10 @@ class Writer {
 function truncate(text: string, font: PDFFont, size: number, max: number) {
   if (font.widthOfTextAtSize(text, size) <= max) return text
   let end = text.length
-  while (end > 0 && font.widthOfTextAtSize(`${text.slice(0, end)}…`, size) > max) {
+  while (
+    end > 0 &&
+    font.widthOfTextAtSize(`${text.slice(0, end)}…`, size) > max
+  ) {
     end--
   }
   return `${text.slice(0, end).trimEnd()}…`
@@ -286,11 +291,15 @@ export async function buildReportPdf(
   w.y -= 18
   w.text("Receipt report", MARGIN, { size: 22, font: bold })
   w.y -= 18
-  w.text(`${meta.scopeLabel}  ·  ${describePeriod(meta.from, meta.to)}`, MARGIN, {
-    size: 11,
-    color: MUTED,
-    width: CONTENT_WIDTH,
-  })
+  w.text(
+    `${meta.scopeLabel}  ·  ${describePeriod(meta.from, meta.to)}`,
+    MARGIN,
+    {
+      size: 11,
+      color: MUTED,
+      width: CONTENT_WIDTH,
+    }
+  )
   w.y -= 14
   w.text(
     `${report.receiptCount} receipt${report.receiptCount === 1 ? "" : "s"}  ·  generated ${formatDate(meta.generatedAt.toISOString())}`,
@@ -310,7 +319,10 @@ export async function buildReportPdf(
 
   if (report.currencies.length === 0) {
     w.y -= 30
-    w.text("No receipts match these filters.", MARGIN, { size: 11, color: MUTED })
+    w.text("No receipts match these filters.", MARGIN, {
+      size: 11,
+      color: MUTED,
+    })
   }
 
   for (const c of report.currencies) {

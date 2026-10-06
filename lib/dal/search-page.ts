@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 
 import {
-  searchReceipts,
   type ReceiptSearchParams,
   type ReceiptSearchResults,
+  searchReceipts,
 } from "@/lib/dal/receipts"
 import { parseSearchParams, type RawSearchParams } from "@/lib/search-params"
 

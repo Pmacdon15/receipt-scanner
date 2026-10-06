@@ -1,5 +1,9 @@
-import { describePeriod, exportBaseName, monthLabel } from "@/lib/documents/report"
 import type { ReportReceipt } from "@/lib/documents/report"
+import {
+  describePeriod,
+  exportBaseName,
+  monthLabel,
+} from "@/lib/documents/report"
 import { ZipWriter } from "@/lib/documents/zip"
 import { receiptTypeLabel } from "@/lib/receipt-types"
 
@@ -24,7 +28,9 @@ import { receiptTypeLabel } from "@/lib/receipt-types"
 export const ARCHIVE_ORGANIZE = ["month", "category", "none"] as const
 export type ArchiveOrganize = (typeof ARCHIVE_ORGANIZE)[number]
 
-export function parseOrganize(value: string | null | undefined): ArchiveOrganize {
+export function parseOrganize(
+  value: string | null | undefined
+): ArchiveOrganize {
   return ARCHIVE_ORGANIZE.includes(value as ArchiveOrganize)
     ? (value as ArchiveOrganize)
     : "month"
@@ -37,6 +43,7 @@ export function parseOrganize(value: string | null | undefined): ArchiveOrganize
 export const ARCHIVE_PHOTO_LIMIT = 500
 
 // Characters Windows, macOS or common unzip tools reject in a file name.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what this strips.
 const UNSAFE_NAME = /[\\/:*?"<>|\u0000-\u001f\u007f]+/g
 
 /** A file or folder name safe on every desktop OS, never empty. */
@@ -58,9 +65,7 @@ function folderFor(receipt: ReportReceipt, organize: ArchiveOrganize) {
     return `${safeName(receiptTypeLabel(receipt.receiptType))}/`
   }
   const month = receipt.purchasedOn?.slice(0, 7) ?? null
-  return month
-    ? `${month} ${monthLabel(month).split(" ")[0]}/`
-    : "No date/"
+  return month ? `${month} ${monthLabel(month).split(" ")[0]}/` : "No date/"
 }
 
 function photoFileName(receipt: ReportReceipt) {

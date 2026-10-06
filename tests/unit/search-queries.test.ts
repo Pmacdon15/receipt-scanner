@@ -32,9 +32,8 @@ afterEach(() => {
 })
 
 function stubFetch(respond: () => Response) {
-  const spy = spyOn(globalThis, "fetch").mockImplementation(
-    (async () => respond()) as unknown as typeof fetch
-  )
+  const spy = spyOn(globalThis, "fetch").mockImplementation((async () =>
+    respond()) as unknown as typeof fetch)
   restores.push(() => spy.mockRestore())
   return spy
 }
@@ -117,8 +116,10 @@ describe("fetchReceiptSearch", () => {
 })
 
 describe("receiptSearchQueryOptions", () => {
-  const retry = receiptSearchQueryOptions(alice, { scope: "mine" })
-    .retry as (count: number, error: Error) => boolean
+  const retry = receiptSearchQueryOptions(alice, { scope: "mine" }).retry as (
+    count: number,
+    error: Error
+  ) => boolean
 
   test("does not retry a 401", () => {
     expect(retry(0, new SearchRequestError("no", 401))).toBe(false)

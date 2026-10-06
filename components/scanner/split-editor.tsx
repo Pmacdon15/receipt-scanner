@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
+import type * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -177,7 +177,7 @@ export function SplitEditor({
         )}
       </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   )
 }

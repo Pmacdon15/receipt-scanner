@@ -7,16 +7,13 @@ import {
   test,
 } from "bun:test"
 import type { NextRequest } from "next/server"
-
+import { getReceiptExport } from "@/lib/dal/receipts"
+import { type InsertReceiptInput, insertReceipt } from "@/lib/db/receipts"
+import type { ArchiveManifest } from "@/lib/documents/receipt-archive"
+import { newReceiptImagePathname } from "@/lib/receipt-image"
 import { fake, resetFakes, signIn } from "../helpers/server-mocks"
 import { createTestDb, type TestDb } from "../helpers/test-db"
 import { readZip } from "../helpers/zip"
-
-import { getReceiptExport } from "@/lib/dal/receipts"
-import { insertReceipt, type InsertReceiptInput } from "@/lib/db/receipts"
-import { newReceiptImagePathname } from "@/lib/receipt-image"
-
-import type { ArchiveManifest } from "@/lib/documents/receipt-archive"
 
 const { GET: getPdf } = await import("@/app/api/documents/pdf/route")
 const { GET: getXlsx } = await import("@/app/api/documents/xlsx/route")
@@ -67,10 +64,22 @@ const request = (path: string) =>
 
 describe("getReceiptExport", () => {
   test("covers only the signed-in user's receipts in the period, oldest first", async () => {
-    await insertReceipt("user_a", receipt({ merchant: "Later", purchasedOn: "2026-02-10" }))
-    await insertReceipt("user_a", receipt({ merchant: "Earlier", purchasedOn: "2026-01-05" }))
-    await insertReceipt("user_a", receipt({ merchant: "Last year", purchasedOn: "2025-06-01" }))
-    await insertReceipt("user_b", receipt({ merchant: "Not mine", purchasedOn: "2026-01-20" }))
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Later", purchasedOn: "2026-02-10" })
+    )
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Earlier", purchasedOn: "2026-01-05" })
+    )
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Last year", purchasedOn: "2025-06-01" })
+    )
+    await insertReceipt(
+      "user_b",
+      receipt({ merchant: "Not mine", purchasedOn: "2026-01-20" })
+    )
 
     signIn("user_a")
     const data = await getReceiptExport({
@@ -84,9 +93,18 @@ describe("getReceiptExport", () => {
   })
 
   test("the team scope covers the active organization, and falls back without one", async () => {
-    await insertReceipt("user_a", receipt({ merchant: "Mine, team", orgId: "org_1" }))
-    await insertReceipt("user_b", receipt({ merchant: "Teammate", orgId: "org_1" }))
-    await insertReceipt("user_c", receipt({ merchant: "Other team", orgId: "org_2" }))
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Mine, team", orgId: "org_1" })
+    )
+    await insertReceipt(
+      "user_b",
+      receipt({ merchant: "Teammate", orgId: "org_1" })
+    )
+    await insertReceipt(
+      "user_c",
+      receipt({ merchant: "Other team", orgId: "org_2" })
+    )
     fake.orgs.set("org_1", "Acme")
 
     signIn("user_a", "org_1")
@@ -130,7 +148,9 @@ describe("download routes", () => {
     const bytes = new Uint8Array(await response.arrayBuffer())
     expect(new TextDecoder().decode(bytes.subarray(0, 5))).toBe("%PDF-")
 
-    const inline = await getPdf(request("/api/documents/pdf?disposition=inline"))
+    const inline = await getPdf(
+      request("/api/documents/pdf?disposition=inline")
+    )
     expect(inline.headers.get("Content-Disposition")).toStartWith("inline;")
   })
 
@@ -142,7 +162,9 @@ describe("download routes", () => {
     const response = await getXlsx(request("/api/documents/xlsx"))
     expect(response.status).toBe(200)
     const files = readZip(new Uint8Array(await response.arrayBuffer()))
-    const sheet = new TextDecoder().decode(files.get("xl/worksheets/sheet2.xml"))
+    const sheet = new TextDecoder().decode(
+      files.get("xl/worksheets/sheet2.xml")
+    )
     expect(sheet).toContain("Costco")
     expect(sheet).not.toContain("Secret Shop")
   })
@@ -151,12 +173,20 @@ describe("download routes", () => {
     const mine = newReceiptImagePathname("user_a")
     await insertReceipt(
       "user_a",
-      receipt({ merchant: "Costco", purchasedOn: "2026-01-15", totalCents: 4217, imageUrl: mine })
+      receipt({
+        merchant: "Costco",
+        purchasedOn: "2026-01-15",
+        totalCents: 4217,
+        imageUrl: mine,
+      })
     )
     await insertReceipt("user_a", receipt({ merchant: "Typed in" }))
     await insertReceipt(
       "user_b",
-      receipt({ merchant: "Theirs", imageUrl: newReceiptImagePathname("user_b") })
+      receipt({
+        merchant: "Theirs",
+        imageUrl: newReceiptImagePathname("user_b"),
+      })
     )
     signIn("user_a")
 
@@ -209,13 +239,18 @@ describe("download routes", () => {
   test("the spreadsheet names each photo's file when asked", async () => {
     await insertReceipt(
       "user_a",
-      receipt({ merchant: "Costco", imageUrl: newReceiptImagePathname("user_a") })
+      receipt({
+        merchant: "Costco",
+        imageUrl: newReceiptImagePathname("user_a"),
+      })
     )
     signIn("user_a")
 
     const response = await getXlsx(request("/api/documents/xlsx?photos=month"))
     const files = readZip(new Uint8Array(await response.arrayBuffer()))
-    const sheet = new TextDecoder().decode(files.get("xl/worksheets/sheet2.xml"))
+    const sheet = new TextDecoder().decode(
+      files.get("xl/worksheets/sheet2.xml")
+    )
     expect(sheet).toContain("2026-01 January/2026-01-15 Costco 10.00.jpg")
   })
 })

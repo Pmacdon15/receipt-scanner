@@ -13,7 +13,7 @@ export function SignedOutPrompt() {
         <LockIcon className="size-5" />
       </span>
 
-      <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+      <h1 className="mt-5 font-semibold text-2xl tracking-tight">
         Sign in to search receipts
       </h1>
       <p className="mt-2 text-pretty text-muted-foreground">

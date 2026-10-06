@@ -15,7 +15,7 @@ export function CtaSphere() {
   return (
     <div
       aria-hidden
-      className="absolute inset-x-0 top-0 h-64 [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-auto sm:w-3/5 sm:[mask-image:linear-gradient(to_left,black_40%,transparent_85%)] lg:w-1/2"
+      className="absolute inset-x-0 top-0 h-64 [mask-image:linear-gradient(to_bottom,black_45%,transparent)] sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:h-auto sm:w-3/5 lg:w-1/2 sm:[mask-image:linear-gradient(to_left,black_40%,transparent_85%)]"
     >
       <SphereLines />
     </div>

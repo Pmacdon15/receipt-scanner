@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import { LoaderCircleIcon, SearchIcon, StoreIcon, XIcon } from "lucide-react"
+import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,7 +63,9 @@ export function SearchBox({
   }
 
   const showList =
-    open && typed.length > 0 && (suggestions.length > 0 || preview || loading || error)
+    open &&
+    typed.length > 0 &&
+    (suggestions.length > 0 || preview || loading || error)
 
   function highlight(index: number) {
     setActiveIndex(index)
@@ -116,6 +118,7 @@ export function SearchBox({
     showList && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: role="search" on the form is equivalent to a <search> wrapper and keeps the layout.
     <form
       role="search"
       className="relative"
@@ -176,6 +179,7 @@ export function SearchBox({
       </div>
 
       {showList && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: only keeps focus in the input mid-click; keyboard use stays in the input.
         <div
           className={cn(
             "absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg transition-opacity",
@@ -184,11 +188,15 @@ export function SearchBox({
           // Keep focus in the input so blur does not close the list mid-click.
           onMouseDown={(event) => event.preventDefault()}
         >
+          {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: WAI-ARIA combobox popup; the input keeps focus via aria-activedescendant. */}
           <ul id={listId} role="listbox" aria-label="Merchant suggestions">
             {suggestions.map((suggestion, index) => (
+              // biome-ignore lint/a11y/useFocusableInteractive: combobox option; the input handles arrow keys and Enter via aria-activedescendant.
+              // biome-ignore lint/a11y/useKeyWithClickEvents: combobox option; the input handles arrow keys and Enter via aria-activedescendant.
               <li
                 key={suggestion.merchant}
                 id={`${listId}-option-${index}`}
+                // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: combobox option; the input keeps focus via aria-activedescendant.
                 role="option"
                 aria-selected={index === activeIndex}
                 className={cn(
@@ -202,14 +210,14 @@ export function SearchBox({
                 <span className="min-w-0 flex-1 truncate">
                   <Highlighted text={suggestion.merchant} match={typed} />
                 </span>
-                <span className="text-xs text-muted-foreground tabular-nums">
+                <span className="text-muted-foreground text-xs tabular-nums">
                   {suggestion.receiptCount}
                 </span>
               </li>
             ))}
           </ul>
 
-          <div className="flex items-center justify-between gap-3 border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 border-t bg-muted/40 px-3 py-2 text-muted-foreground text-xs">
             {error ? (
               <span className="text-destructive">{error}</span>
             ) : preview ? (

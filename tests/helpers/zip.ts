@@ -34,4 +34,3 @@ export function readZip(bytes: Uint8Array): Map<string, Uint8Array> {
   }
   return files
 }
-

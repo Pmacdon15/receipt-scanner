@@ -11,7 +11,7 @@ export function SplitSummary({
   currency: string
 }) {
   return (
-    <p className="mt-0.5 text-xs text-muted-foreground">
+    <p className="mt-0.5 text-muted-foreground text-xs">
       {splits.map((split, index) => (
         <span key={split.type}>
           {index > 0 && " · "}

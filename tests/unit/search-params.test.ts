@@ -142,7 +142,9 @@ describe("searchHref", () => {
     const url = new URL(searchHref(params, { page: 2 }), "http://x")
     const raw: Record<string, string[]> = {}
     for (const [key, value] of url.searchParams) {
-      ;(raw[key] ??= []).push(value)
+      const values = raw[key] ?? []
+      values.push(value)
+      raw[key] = values
     }
     expect(parseSearchParams(raw)).toEqual({
       purchasedTo: undefined,

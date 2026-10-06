@@ -2,9 +2,9 @@ import { SplitSummary } from "@/components/receipts/split-summary"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ExportedReceipt } from "@/lib/dal/receipts"
 import {
+  type CurrencyTotals,
   categoryLabel,
   describePeriod,
-  type CurrencyTotals,
   type ReceiptReport,
 } from "@/lib/documents/report"
 import { formatDate, formatMoney } from "@/lib/money"
@@ -32,7 +32,7 @@ export function ReportView({
     <article className="flex flex-col gap-8 print:gap-6 print:text-black">
       {/* Only on paper: the page heading and filters are hidden there. */}
       <header className="hidden print:block">
-        <h1 className="text-2xl font-semibold">Receipt report</h1>
+        <h1 className="font-semibold text-2xl">Receipt report</h1>
         <p className="text-sm">
           {scopeLabel} · {describePeriod(from, to)} · {report.receiptCount}{" "}
           receipts
@@ -62,14 +62,14 @@ export function ReportView({
       {receipts.length > 0 && (
         <section className="flex flex-col gap-3 print:break-before-page">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">Receipts</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="font-semibold text-xl tracking-tight">Receipts</h2>
+            <p className="text-muted-foreground text-sm">
               {receipts.length} in this period
             </p>
           </div>
           <div className="overflow-x-auto rounded-xl ring-1 ring-foreground/10 print:overflow-visible print:ring-0">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground uppercase print:bg-transparent">
+              <thead className="bg-muted/50 text-left text-muted-foreground text-xs uppercase print:bg-transparent">
                 <tr>
                   <th className="px-3 py-2 font-medium">Date</th>
                   <th className="px-3 py-2 font-medium">Merchant</th>
@@ -85,9 +85,9 @@ export function ReportView({
                 {receipts.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-t align-top break-inside-avoid"
+                    className="break-inside-avoid border-t align-top"
                   >
-                    <td className="px-3 py-2 whitespace-nowrap tabular-nums">
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                       {formatDate(r.purchasedOn)}
                     </td>
                     <td className="px-3 py-2">{r.merchant}</td>
@@ -102,12 +102,12 @@ export function ReportView({
                         {r.uploadedBy}
                       </td>
                     )}
-                    <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                       {r.taxCents == null
                         ? "—"
                         : formatMoney(r.taxCents, r.currency)}
                     </td>
-                    <td className="px-3 py-2 text-right font-medium whitespace-nowrap tabular-nums">
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums">
                       {formatMoney(r.totalCents, r.currency)}
                     </td>
                   </tr>
@@ -136,9 +136,9 @@ function CurrencySection({
     totals.subtotalKnown < totals.receiptCount
 
   return (
-    <section className="flex flex-col gap-6 break-inside-avoid-page">
+    <section className="flex break-inside-avoid-page flex-col gap-6">
       {labelled && (
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="font-semibold text-xl tracking-tight">
           {totals.currency} receipts
         </h2>
       )}
@@ -151,7 +151,7 @@ function CurrencySection({
           <Stat label="Receipts" value={String(totals.receiptCount)} />
         </div>
         {partial && (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-muted-foreground text-xs">
             Tax is recorded on {totals.taxKnown} of {totals.receiptCount}{" "}
             receipts and the subtotal on {totals.subtotalKnown}; the totals
             above add up what is recorded.
@@ -163,7 +163,7 @@ function CurrencySection({
         <div className="flex flex-col gap-3">
           <h3 className="font-semibold">By category</h3>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground uppercase">
+            <thead className="text-left text-muted-foreground text-xs uppercase">
               <tr>
                 <th className="pb-2 font-medium">Category</th>
                 <th className="pb-2 text-right font-medium">Receipts</th>
@@ -188,9 +188,9 @@ function CurrencySection({
                   <td className="py-2 text-right align-top tabular-nums">
                     {cat.receiptCount}
                   </td>
-                  <td className="py-2 text-right align-top whitespace-nowrap tabular-nums">
+                  <td className="whitespace-nowrap py-2 text-right align-top tabular-nums">
                     {money(cat.totalCents)}
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-muted-foreground text-xs">
                       {Math.round(cat.share * 100)}%
                     </div>
                   </td>
@@ -199,7 +199,7 @@ function CurrencySection({
             </tbody>
           </table>
           {hasSplits && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               A split receipt counts under each of its categories, with only
               that category&apos;s share of the money.
             </p>
@@ -209,7 +209,7 @@ function CurrencySection({
         <div className="flex flex-col gap-3">
           <h3 className="font-semibold">By month</h3>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground uppercase">
+            <thead className="text-left text-muted-foreground text-xs uppercase">
               <tr>
                 <th className="pb-2 font-medium">Month</th>
                 <th className="pb-2 text-right font-medium">Receipts</th>
@@ -224,10 +224,10 @@ function CurrencySection({
                   <td className="py-2 text-right tabular-nums">
                     {m.receiptCount}
                   </td>
-                  <td className="py-2 text-right whitespace-nowrap tabular-nums">
+                  <td className="whitespace-nowrap py-2 text-right tabular-nums">
                     {money(m.taxCents)}
                   </td>
-                  <td className="py-2 text-right whitespace-nowrap tabular-nums">
+                  <td className="whitespace-nowrap py-2 text-right tabular-nums">
                     {money(m.totalCents)}
                   </td>
                 </tr>
@@ -237,10 +237,10 @@ function CurrencySection({
                 <td className="py-2 text-right tabular-nums">
                   {totals.receiptCount}
                 </td>
-                <td className="py-2 text-right whitespace-nowrap tabular-nums">
+                <td className="whitespace-nowrap py-2 text-right tabular-nums">
                   {money(totals.taxCents)}
                 </td>
-                <td className="py-2 text-right whitespace-nowrap tabular-nums">
+                <td className="whitespace-nowrap py-2 text-right tabular-nums">
                   {money(totals.totalCents)}
                 </td>
               </tr>
@@ -256,8 +256,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Card className="print:ring-gray-300">
       <CardContent className="py-1">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-muted-foreground text-sm">{label}</p>
+        <p className="mt-1 font-semibold text-2xl tabular-nums">{value}</p>
       </CardContent>
     </Card>
   )

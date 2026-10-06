@@ -5,7 +5,7 @@ import {
   describePeriod,
   type ReportReceipt,
 } from "@/lib/documents/report"
-import { buildXlsx, cellRef, type Cell, type Sheet } from "@/lib/documents/xlsx"
+import { buildXlsx, type Cell, cellRef, type Sheet } from "@/lib/documents/xlsx"
 import { receiptTypeLabel } from "@/lib/receipt-types"
 
 export type ReportMeta = {
@@ -52,13 +52,10 @@ function summarySheet(
   const rows: Cell[][] = [
     [{ value: "Receipt report", style: "title" }],
     [{ value: "Covering", style: "muted" }, meta.scopeLabel],
-    [
-      { value: "Period", style: "muted" },
-      describePeriod(meta.from, meta.to),
-    ],
+    [{ value: "Period", style: "muted" }, describePeriod(meta.from, meta.to)],
     [
       { value: "Generated", style: "muted" },
-      meta.generatedAt.toISOString().slice(0, 16).replace("T", " ") + " UTC",
+      `${meta.generatedAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
     ],
     [
       { value: "Receipts", style: "muted" },
@@ -161,7 +158,9 @@ function receiptsSheet(
   }))
 
   const body: Cell[][] = receipts.map((r) => [
-    r.purchasedOn ? { date: r.purchasedOn } : { value: "No date", style: "muted" },
+    r.purchasedOn
+      ? { date: r.purchasedOn }
+      : { value: "No date", style: "muted" },
     r.merchant,
     categoryLabel(r),
     r.splits

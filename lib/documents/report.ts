@@ -1,8 +1,8 @@
 import { formatDate, formatMoney } from "@/lib/money"
 import {
   RECEIPT_TYPES,
-  receiptTypeLabel,
   type ReceiptTypeId,
+  receiptTypeLabel,
 } from "@/lib/receipt-types"
 import type { ReceiptSplit } from "@/lib/schemas"
 

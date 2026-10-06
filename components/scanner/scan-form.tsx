@@ -1,32 +1,32 @@
 "use client"
 
-import * as React from "react"
 import {
   CameraIcon,
   Loader2Icon,
   PencilLineIcon,
-  SplitIcon,
   ScanLineIcon,
   SparklesIcon,
+  SplitIcon,
   WandSparklesIcon,
 } from "lucide-react"
+import * as React from "react"
 import { toast } from "sonner"
 
 import {
   extractReceiptAction,
+  type ScanFormState,
   scanReceiptAction,
   suggestReceiptTypeAction,
-  type ScanFormState,
 } from "@/app/actions/receipts"
 import {
-  ScanCapture,
   type CapturedImage,
+  ScanCapture,
 } from "@/components/scanner/scan-capture"
 import {
   newSplitRow,
-  serializeSplitRows,
   SplitEditor,
   type SplitRow,
+  serializeSplitRows,
 } from "@/components/scanner/split-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,9 +54,9 @@ import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
 import {
   type ExtractedFields,
   fieldErrorsFrom,
+  type ScanReceiptField,
   scanReceiptFormSchema,
   suggestReceiptTypeInputSchema,
-  type ScanReceiptField,
 } from "@/lib/schemas"
 
 const AUTO = ""
@@ -153,10 +153,8 @@ export function ScanForm() {
   // Fills only the fields the user has left empty, so reading the photo never
   // overwrites something they typed.
   function applyExtracted(fields: ExtractedFields) {
-    const fill =
-      (value: string | undefined) =>
-      (current: string) =>
-        current.trim() === "" && value ? value : current
+    const fill = (value: string | undefined) => (current: string) =>
+      current.trim() === "" && value ? value : current
 
     setMerchant(fill(fields.merchant))
     setPurchasedOn(fill(fields.purchasedOn))
@@ -254,8 +252,8 @@ export function ScanForm() {
       <CardHeader>
         <CardTitle>Scan a receipt</CardTitle>
         <CardDescription>
-          Scan a photo and the details are read off it, or type the receipt
-          in. Split it across categories when it covers more than one.
+          Scan a photo and the details are read off it, or type the receipt in.
+          Split it across categories when it covers more than one.
         </CardDescription>
       </CardHeader>
 
@@ -289,18 +287,18 @@ export function ScanForm() {
                 disabled={isPending}
               />
               {isReading ? (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
                   <Loader2Icon className="size-3 animate-spin" />
                   Reading the receipt
                 </p>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   The details are read off the photo and filled in below.
                   Anything you have already typed is left alone.
                 </p>
               )}
               {(state.fieldErrors.image || state.fieldErrors.imagePathname) && (
-                <p className="text-xs text-destructive">
+                <p className="text-destructive text-xs">
                   {state.fieldErrors.image || state.fieldErrors.imagePathname}
                 </p>
               )}
@@ -503,7 +501,7 @@ export function ScanForm() {
         </CardContent>
 
         <CardFooter className="flex-col items-stretch gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Saving as{" "}
             <span className="font-medium text-foreground">
               {isSplit
@@ -537,7 +535,7 @@ function DetectionHint({
 }) {
   if (isDetecting) {
     return (
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
         <Loader2Icon className="size-3 animate-spin" />
         Detecting type
       </p>
@@ -546,7 +544,7 @@ function DetectionHint({
 
   if (!suggestion) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         Add a merchant or receipt text and a type will be suggested here.
       </p>
     )
@@ -555,7 +553,7 @@ function DetectionHint({
   const percent = Math.round(suggestion.confidence * 100)
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
       {suggestion.source === "photo" ? (
         <CameraIcon className="size-3" />
       ) : (
@@ -588,5 +586,5 @@ function DetectionHint({
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
-  return <p className="text-xs text-destructive">{message}</p>
+  return <p className="text-destructive text-xs">{message}</p>
 }

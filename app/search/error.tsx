@@ -16,14 +16,14 @@ export default function SearchError({
       <span className="flex size-11 items-center justify-center rounded-lg bg-muted">
         <TriangleAlertIcon className="size-5" />
       </span>
-      <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+      <h1 className="mt-5 font-semibold text-2xl tracking-tight">
         Search could not load
       </h1>
       <p className="mt-2 text-pretty text-muted-foreground">
         Something went wrong fetching your receipts. Try again in a moment.
       </p>
       {error.digest && (
-        <p className="mt-2 font-mono text-xs text-muted-foreground">
+        <p className="mt-2 font-mono text-muted-foreground text-xs">
           {error.digest}
         </p>
       )}

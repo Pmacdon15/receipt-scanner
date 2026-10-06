@@ -9,7 +9,9 @@ import { parseSearchParams, rawSearchParamsFrom } from "@/lib/search-params"
 // documents page (and search), so a link built from one works for the others.
 
 export function exportParamsFrom(request: NextRequest): ReceiptSearchParams {
-  return parseSearchParams(rawSearchParamsFrom(new URL(request.url).searchParams))
+  return parseSearchParams(
+    rawSearchParamsFrom(new URL(request.url).searchParams)
+  )
 }
 
 /** One query value from the request URL, outside the shared filters. */
@@ -29,7 +31,10 @@ export function reportMeta(data: ReceiptExport, generatedAt: Date): ReportMeta {
 }
 
 export function exportFileName(data: ReceiptExport, extension: string) {
-  const base = exportBaseName(data.params.purchasedFrom, data.params.purchasedTo)
+  const base = exportBaseName(
+    data.params.purchasedFrom,
+    data.params.purchasedTo
+  )
   return `${data.scope === "org" ? `team-${base}` : base}.${extension}`
 }
 

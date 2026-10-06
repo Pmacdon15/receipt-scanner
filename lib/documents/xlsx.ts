@@ -85,6 +85,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 // Characters XML 1.0 cannot carry at all (most control characters). Receipt
 // text comes from OCR and model output, so it is stripped, not trusted.
 const INVALID_XML =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: this lists the control characters XML allows, to strip the rest.
   /[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu
 
 export function escapeXml(value: string): string {
@@ -127,8 +128,10 @@ function sheetNames(sheets: readonly Sheet[]): string[] {
   const used = new Set<string>()
   return sheets.map((sheet, i) => {
     const base =
-      sheet.name.replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) ||
-      `Sheet${i + 1}`
+      sheet.name
+        .replace(/[[\]:*?/\\]/g, " ")
+        .trim()
+        .slice(0, 31) || `Sheet${i + 1}`
     let name = base
     for (let n = 2; used.has(name.toLowerCase()); n++) {
       name = `${base.slice(0, 31 - String(n).length - 1)} ${n}`
@@ -297,17 +300,20 @@ export function buildXlsx(
   const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${title ? `<dc:title>${escapeXml(title)}</dc:title>` : ""}<dcterms:created xsi:type="dcterms:W3CDTF">${stamp}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${stamp}</dcterms:modified></cp:coreProperties>`
 
-  return zipSync([
-    file("[Content_Types].xml", contentTypes),
-    file("_rels/.rels", rootRels),
-    file("docProps/core.xml", core),
-    file("xl/workbook.xml", workbook),
-    file("xl/_rels/workbook.xml.rels", workbookRels),
-    file("xl/styles.xml", STYLES_XML),
-    ...sheets.map((sheet, i) =>
-      file(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i))
-    ),
-  ], { deflate })
+  return zipSync(
+    [
+      file("[Content_Types].xml", contentTypes),
+      file("_rels/.rels", rootRels),
+      file("docProps/core.xml", core),
+      file("xl/workbook.xml", workbook),
+      file("xl/_rels/workbook.xml.rels", workbookRels),
+      file("xl/styles.xml", STYLES_XML),
+      ...sheets.map((sheet, i) =>
+        file(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i))
+      ),
+    ],
+    { deflate }
+  )
 }
 
 function absolute(range: string): string {

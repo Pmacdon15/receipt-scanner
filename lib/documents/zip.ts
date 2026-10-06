@@ -57,7 +57,10 @@ function dosDateTime(date: Date): { time: number; date: number } {
       (date.getUTCHours() << 11) |
       (date.getUTCMinutes() << 5) |
       Math.floor(date.getUTCSeconds() / 2),
-    date: ((year - 1980) << 9) | ((date.getUTCMonth() + 1) << 5) | date.getUTCDate(),
+    date:
+      ((year - 1980) << 9) |
+      ((date.getUTCMonth() + 1) << 5) |
+      date.getUTCDate(),
   }
 }
 

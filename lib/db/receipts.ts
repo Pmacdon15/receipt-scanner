@@ -1,6 +1,6 @@
-import { getSql } from "./client"
 import type { ReceiptTypeId } from "@/lib/receipt-types"
 import type { ReceiptSort, ReceiptSplit } from "@/lib/schemas"
+import { getSql } from "./client"
 
 export type { ReceiptSort }
 
@@ -255,7 +255,8 @@ export async function selectReceiptTotals(
 // themselves (in any organization); "org" is everything saved into one
 // organization, by any member.
 export type ReceiptScope =
-  { kind: "user"; userId: string } | { kind: "org"; orgId: string }
+  | { kind: "user"; userId: string }
+  | { kind: "org"; orgId: string }
 
 export type ReceiptSearchFilters = {
   query?: string
@@ -310,11 +311,7 @@ const MAX_TERMS = 8
 // notes or receipt text), in any order: "costco gas" finds a Costco receipt
 // whose text mentions gas, which a single substring match would miss.
 export function searchTerms(query: string | undefined): string[] {
-  return (query ?? "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, MAX_TERMS)
+  return (query ?? "").trim().split(/\s+/).filter(Boolean).slice(0, MAX_TERMS)
 }
 
 function buildWhere(

@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
   if (!parsedFile.success) {
     const issue = parsedFile.error.issues[0]
     const status =
-      issue && "params" in issue && typeof issue.params === "object" && issue.params !== null && "status" in issue.params
+      issue &&
+      "params" in issue &&
+      typeof issue.params === "object" &&
+      issue.params !== null &&
+      "status" in issue.params
         ? Number((issue.params as { status?: number }).status)
         : 400
     return Response.json({ error: issue.message }, { status })

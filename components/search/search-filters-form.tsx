@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   fieldErrorsFrom,
-  searchFiltersFormSchema,
   type SearchFiltersField,
   type SearchFiltersForm as SearchFiltersValues,
+  searchFiltersFormSchema,
 } from "@/lib/schemas"
 import { SORT_OPTIONS } from "@/lib/search-params"
 
@@ -153,5 +153,5 @@ export function SearchFiltersForm({
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
-  return <p className="text-xs text-destructive">{message}</p>
+  return <p className="text-destructive text-xs">{message}</p>
 }

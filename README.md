@@ -147,8 +147,10 @@ keys instead — development keys have strict usage limits.
 ```bash
 bun run dev        # dev server
 bun run build      # production build
-bun run lint       # eslint
-bun run format     # prettier
+bun run lint       # biome check --write: lint, format, sort imports and
+                   # Tailwind classes, remove unused imports
+bun run lint:ci    # same checks, no writes (what CI runs)
+bun run format     # biome format --write
 bun run typecheck  # tsc --noEmit
 ```
 

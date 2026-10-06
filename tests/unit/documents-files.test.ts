@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test"
 import { deflateRawSync } from "node:zlib"
-
-import { makeSearchedReceipt } from "../helpers/fixtures"
-import { readZip } from "../helpers/zip"
-
 import {
   archiveBlob,
   archivePhotoPaths,
@@ -22,6 +18,8 @@ import {
   excelDate,
 } from "@/lib/documents/xlsx"
 import { crc32, zipSync } from "@/lib/documents/zip"
+import { makeSearchedReceipt } from "../helpers/fixtures"
+import { readZip } from "../helpers/zip"
 
 const text = (data: Uint8Array | undefined) => new TextDecoder().decode(data)
 
@@ -106,7 +104,11 @@ describe("xlsx", () => {
 
   test("the receipt spreadsheet lists each receipt and totals one currency", () => {
     const receipts = [
-      makeSearchedReceipt({ merchant: "Costco", totalCents: 4217, taxCents: 200 }),
+      makeSearchedReceipt({
+        merchant: "Costco",
+        totalCents: 4217,
+        taxCents: 200,
+      }),
       makeSearchedReceipt({ merchant: "Shell <Gas>", totalCents: 6000 }),
     ]
     const files = readZip(
@@ -177,14 +179,33 @@ describe("receipt archive", () => {
   })
 
   test("photo paths file by month or category and never collide", () => {
-    const a = makeSearchedReceipt({ merchant: "Costco", purchasedOn: "2026-02-03", totalCents: 1000, hasImage: true })
-    const b = makeSearchedReceipt({ merchant: "Costco", purchasedOn: "2026-02-03", totalCents: 1000, hasImage: true })
-    const c = makeSearchedReceipt({ merchant: "Shell", purchasedOn: null, receiptType: "fuel", hasImage: true })
+    const a = makeSearchedReceipt({
+      merchant: "Costco",
+      purchasedOn: "2026-02-03",
+      totalCents: 1000,
+      hasImage: true,
+    })
+    const b = makeSearchedReceipt({
+      merchant: "Costco",
+      purchasedOn: "2026-02-03",
+      totalCents: 1000,
+      hasImage: true,
+    })
+    const c = makeSearchedReceipt({
+      merchant: "Shell",
+      purchasedOn: null,
+      receiptType: "fuel",
+      hasImage: true,
+    })
     const d = makeSearchedReceipt({ hasImage: false })
 
     const byMonth = archivePhotoPaths([a, b, c, d], "month")
-    expect(byMonth.get(a.id)).toBe("2026-02 February/2026-02-03 Costco 10.00.jpg")
-    expect(byMonth.get(b.id)).toBe("2026-02 February/2026-02-03 Costco 10.00 (2).jpg")
+    expect(byMonth.get(a.id)).toBe(
+      "2026-02 February/2026-02-03 Costco 10.00.jpg"
+    )
+    expect(byMonth.get(b.id)).toBe(
+      "2026-02 February/2026-02-03 Costco 10.00 (2).jpg"
+    )
     expect(byMonth.get(c.id)).toBe("No date/No date Shell 42.50.jpg")
     expect(byMonth.has(d.id)).toBe(false)
 
@@ -196,7 +217,10 @@ describe("receipt archive", () => {
   })
 
   test("the manifest lists photos with their paths and no storage keys", () => {
-    const withPhoto = makeSearchedReceipt({ merchant: "Costco", hasImage: true })
+    const withPhoto = makeSearchedReceipt({
+      merchant: "Costco",
+      hasImage: true,
+    })
     const typed = makeSearchedReceipt({ merchant: "Typed in", hasImage: false })
 
     const manifest = buildArchiveManifest([withPhoto, typed], {
@@ -300,9 +324,13 @@ describe("receipt archive", () => {
     })
 
     const names = [
-      ...readZip(new Uint8Array(await archiveBlob(archive).arrayBuffer())).keys(),
+      ...readZip(
+        new Uint8Array(await archiveBlob(archive).arrayBuffer())
+      ).keys(),
     ].filter((n) => n.endsWith(".jpg"))
-    expect(names).toEqual(manifest.photos.map((p) => `${manifest.rootName}/${p.path}`))
+    expect(names).toEqual(
+      manifest.photos.map((p) => `${manifest.rootName}/${p.path}`)
+    )
     expect(peak).toBeLessThanOrEqual(3)
     expect(peak).toBeGreaterThan(1)
   })

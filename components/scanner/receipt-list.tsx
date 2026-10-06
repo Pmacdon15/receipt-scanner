@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import {
   ImageIcon,
   Loader2Icon,
@@ -9,6 +8,7 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
+import * as React from "react"
 import { toast } from "sonner"
 
 import {
@@ -50,7 +50,7 @@ export function ReceiptList({ receipts }: { receipts: Receipt[] }) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center">
         <p className="font-medium">No receipts yet</p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-muted-foreground text-sm">
           Save one with the form and it will show up here.
         </p>
       </div>
@@ -173,7 +173,7 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
           type="button"
           onClick={() => setIsPhotoOpen(true)}
           aria-label={`View the photo of the receipt from ${receipt.merchant}`}
-          className="absolute inset-0 z-0 cursor-pointer rounded-lg ring-ring ring-offset-0 outline-none focus-visible:ring-2"
+          className="absolute inset-0 z-0 cursor-pointer rounded-lg outline-none ring-ring ring-offset-0 focus-visible:ring-2"
         />
       )}
 
@@ -189,7 +189,7 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
             )}
             <SourceBadge receipt={receipt} />
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-muted-foreground text-sm">
             {formatDate(receipt.purchasedOn)} ·{" "}
             {formatMoney(receipt.totalCents, receipt.currency)}
           </p>

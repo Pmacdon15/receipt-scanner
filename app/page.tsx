@@ -1,5 +1,3 @@
-import type { ReactNode } from "react"
-import Link from "next/link"
 import { Show, SignUpButton } from "@clerk/nextjs"
 import {
   ArrowRightIcon,
@@ -13,6 +11,8 @@ import {
   UsersIcon,
   WalletMinimalIcon,
 } from "lucide-react"
+import Link from "next/link"
+import type { ReactNode } from "react"
 
 import { CategoryRail } from "@/components/home/category-rail"
 import { CtaSphere } from "@/components/home/cta-sphere"
@@ -84,10 +84,10 @@ function SectionHeading({
 }) {
   return (
     <div className="flex max-w-2xl flex-col gap-3">
-      <p className="font-mono text-xs tracking-widest text-emerald-600 uppercase dark:text-emerald-400">
+      <p className="font-mono text-emerald-600 text-xs uppercase tracking-widest dark:text-emerald-400">
         {eyebrow}
       </p>
-      <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+      <h2 className="text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
         {title}
       </h2>
       {children && (
@@ -107,11 +107,11 @@ export default function HomePage() {
         <div className="relative mx-auto w-full max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:pt-24 lg:pb-24">
           <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
             <div className="flex flex-col items-start gap-7">
-              <h1 className="animate-home-rise text-5xl leading-[1.02] font-semibold tracking-tighter text-balance sm:text-6xl lg:text-7xl">
+              <h1 className="animate-home-rise text-balance font-semibold text-5xl leading-[1.02] tracking-tighter sm:text-6xl lg:text-7xl">
                 Receipts in. Clean books out.
               </h1>
 
-              <p className="max-w-xl animate-home-rise text-lg text-pretty text-muted-foreground [animation-delay:160ms] sm:text-xl">
+              <p className="max-w-xl animate-home-rise text-pretty text-lg text-muted-foreground [animation-delay:160ms] sm:text-xl">
                 {site.name} turns the shoebox into a searchable, categorised
                 record. Photo, totals and category, saved in one pass, so
                 month-end takes minutes instead of an afternoon.
@@ -131,9 +131,12 @@ export default function HomePage() {
                 </Button>
               </div>
 
-              <ul className="flex animate-home-rise flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground [animation-delay:320ms]">
+              <ul className="flex animate-home-rise flex-wrap gap-x-5 gap-y-2 text-muted-foreground text-sm [animation-delay:320ms]">
                 {promises.map((promise) => (
-                  <li key={promise} className="inline-flex items-center gap-1.5">
+                  <li
+                    key={promise}
+                    className="inline-flex items-center gap-1.5"
+                  >
                     <CheckIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
                     {promise}
                   </li>
@@ -148,7 +151,10 @@ export default function HomePage() {
 
       {/* How it works */}
       <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-24">
-        <SectionHeading eyebrow="How it works" title="Three steps, start to filed">
+        <SectionHeading
+          eyebrow="How it works"
+          title="Three steps, start to filed"
+        >
           No templates, no spreadsheet. The whole flow fits on one screen.
         </SectionHeading>
 
@@ -170,8 +176,8 @@ export default function HomePage() {
                 </span>
               </span>
               <div className="flex flex-col gap-1.5">
-                <h3 className="text-lg font-medium">{step.title}</h3>
-                <p className="max-w-xs text-sm text-pretty text-muted-foreground">
+                <h3 className="font-medium text-lg">{step.title}</h3>
+                <p className="max-w-xs text-pretty text-muted-foreground text-sm">
                   {step.description}
                 </p>
               </div>
@@ -190,15 +196,15 @@ export default function HomePage() {
 
           <div className="mt-12 grid gap-4 md:grid-cols-6">
             {/* Category detection — the big tile. */}
-            <article className="group relative overflow-hidden rounded-3xl border bg-card p-6 md:col-span-4 sm:p-8">
+            <article className="group relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8 md:col-span-4">
               <div className="flex max-w-sm flex-col gap-2">
                 <span className="mb-2 flex size-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   <SparklesIcon className="size-4.5" />
                 </span>
-                <h3 className="text-xl font-semibold tracking-tight">
+                <h3 className="font-semibold text-xl tracking-tight">
                   Categories suggested, never forced
                 </h3>
-                <p className="text-sm text-pretty text-muted-foreground">
+                <p className="text-pretty text-muted-foreground text-sm">
                   Every receipt gets a category and a confidence score. You
                   always see what was picked, and changing it is one tap.
                 </p>
@@ -207,15 +213,23 @@ export default function HomePage() {
               <div className="mt-8 flex flex-col gap-2.5">
                 {[
                   { name: "Harbour Street Market", type: "Grocery", score: 94 },
-                  { name: "Northline Fuel", type: "Fuel & Transport", score: 88 },
-                  { name: "Kettle & Crumb", type: "Restaurant & Cafe", score: 76 },
+                  {
+                    name: "Northline Fuel",
+                    type: "Fuel & Transport",
+                    score: 88,
+                  },
+                  {
+                    name: "Kettle & Crumb",
+                    type: "Restaurant & Cafe",
+                    score: 76,
+                  },
                 ].map((row, i) => (
                   <div
                     key={row.name}
                     className={cn(
                       "flex items-center gap-3 rounded-xl border bg-background px-3 py-2.5 text-sm transition-transform duration-500 group-hover:translate-x-1",
-                      i === 1 && "sm:ml-6 group-hover:delay-75",
-                      i === 2 && "sm:ml-12 group-hover:delay-150"
+                      i === 1 && "group-hover:delay-75 sm:ml-6",
+                      i === 2 && "group-hover:delay-150 sm:ml-12"
                     )}
                   >
                     <span className="min-w-0 flex-1 truncate font-medium">
@@ -230,7 +244,7 @@ export default function HomePage() {
                         style={{ width: `${row.score}%` }}
                       />
                     </span>
-                    <span className="w-8 text-right font-mono text-xs text-muted-foreground tabular-nums">
+                    <span className="w-8 text-right font-mono text-muted-foreground text-xs tabular-nums">
                       {row.score}%
                     </span>
                   </div>
@@ -239,14 +253,14 @@ export default function HomePage() {
             </article>
 
             {/* Photos */}
-            <article className="relative overflow-hidden rounded-3xl border bg-card p-6 md:col-span-2 sm:p-8">
+            <article className="relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8 md:col-span-2">
               <span className="mb-4 flex size-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
                 <ImageIcon className="size-4.5" />
               </span>
-              <h3 className="text-xl font-semibold tracking-tight">
+              <h3 className="font-semibold text-xl tracking-tight">
                 The photo stays with it
               </h3>
-              <p className="mt-2 text-sm text-pretty text-muted-foreground">
+              <p className="mt-2 text-pretty text-muted-foreground text-sm">
                 Images go to private storage and are only served to you, right
                 beside the receipt they belong to.
               </p>
@@ -271,49 +285,49 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground text-xs">
                 <LockIcon className="size-3.5" />
                 Private by default
               </div>
             </article>
 
             {/* Search */}
-            <article className="rounded-3xl border bg-card p-6 md:col-span-2 sm:p-8">
+            <article className="rounded-3xl border bg-card p-6 sm:p-8 md:col-span-2">
               <span className="mb-4 flex size-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
                 <SearchIcon className="size-4.5" />
               </span>
-              <h3 className="text-xl font-semibold tracking-tight">
+              <h3 className="font-semibold text-xl tracking-tight">
                 Find anything in seconds
               </h3>
-              <p className="mt-2 text-sm text-pretty text-muted-foreground">
-                Filter by category, merchant, date or amount when the
-                accountant asks about that one lunch in March.
+              <p className="mt-2 text-pretty text-muted-foreground text-sm">
+                Filter by category, merchant, date or amount when the accountant
+                asks about that one lunch in March.
               </p>
             </article>
 
             {/* Money */}
-            <article className="rounded-3xl border bg-card p-6 md:col-span-2 sm:p-8">
+            <article className="rounded-3xl border bg-card p-6 sm:p-8 md:col-span-2">
               <span className="mb-4 flex size-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
                 <WalletMinimalIcon className="size-4.5" />
               </span>
-              <h3 className="text-xl font-semibold tracking-tight">
+              <h3 className="font-semibold text-xl tracking-tight">
                 Totals that stay honest
               </h3>
-              <p className="mt-2 text-sm text-pretty text-muted-foreground">
+              <p className="mt-2 text-pretty text-muted-foreground text-sm">
                 Subtotal, tax and total are stored in cents, so reports never
                 drift by a penny.
               </p>
             </article>
 
             {/* Teams */}
-            <article className="rounded-3xl border bg-card p-6 md:col-span-2 sm:p-8">
+            <article className="rounded-3xl border bg-card p-6 sm:p-8 md:col-span-2">
               <span className="mb-4 flex size-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
                 <UsersIcon className="size-4.5" />
               </span>
-              <h3 className="text-xl font-semibold tracking-tight">
+              <h3 className="font-semibold text-xl tracking-tight">
                 Yours, or the whole team&apos;s
               </h3>
-              <p className="mt-2 text-sm text-pretty text-muted-foreground">
+              <p className="mt-2 text-pretty text-muted-foreground text-sm">
                 Switch to an organization and everyone files into one shared
                 set, with one shared list of categories.
               </p>
@@ -343,7 +357,7 @@ export default function HomePage() {
             <span className="flex size-10 items-center justify-center rounded-xl bg-foreground text-background">
               <ScanLineIcon className="size-5" />
             </span>
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            <h2 className="text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
               Clear the shoebox this month.
             </h2>
             <p className="text-pretty text-muted-foreground">
