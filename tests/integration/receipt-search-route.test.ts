@@ -49,6 +49,7 @@ function receipt(
     typeSource: "auto",
     detectedType: null,
     detectedConfidence: null,
+    splits: null,
     rawText: null,
     imageUrl: null,
     notes: null,
