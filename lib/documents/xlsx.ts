@@ -1,4 +1,8 @@
+import { deflateRawSync } from "node:zlib"
+
 import { zipSync } from "@/lib/documents/zip"
+
+const deflate = (data: Uint8Array) => new Uint8Array(deflateRawSync(data))
 
 // A minimal .xlsx (Office Open XML) writer: several sheets of text, numbers,
 // dates and formulas with a handful of fixed styles. That is all the receipt
@@ -303,7 +307,7 @@ export function buildXlsx(
     ...sheets.map((sheet, i) =>
       file(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i))
     ),
-  ])
+  ], { deflate })
 }
 
 function absolute(range: string): string {

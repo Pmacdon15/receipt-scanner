@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test"
+import { deflateRawSync } from "node:zlib"
 
 import { makeSearchedReceipt } from "../helpers/fixtures"
 import { readZip } from "../helpers/zip"
 
 import {
+  archiveBlob,
   archivePhotoPaths,
+  archiveReadme,
+  buildArchiveManifest,
+  buildReceiptArchive,
   parseOrganize,
-  receiptArchiveStream,
   safeName,
 } from "@/lib/documents/receipt-archive"
 import { buildReportPdf, toWinAnsi } from "@/lib/documents/report-pdf"
@@ -28,17 +32,27 @@ describe("zip", () => {
 
   test("writes stored and deflated entries that read back intact", () => {
     const big = new TextEncoder().encode("receipt ".repeat(500))
-    const zip = zipSync([
-      { name: "a.txt", data: new TextEncoder().encode("hello") },
-      { name: "dir/b.txt", data: big, compress: true },
-      { name: "café/ü.txt", data: new Uint8Array([1, 2, 3]) },
-    ])
+    const zip = zipSync(
+      [
+        { name: "a.txt", data: new TextEncoder().encode("hello") },
+        { name: "dir/b.txt", data: big, compress: true },
+        { name: "café/ü.txt", data: new Uint8Array([1, 2, 3]) },
+      ],
+      { deflate: (data) => new Uint8Array(deflateRawSync(data)) }
+    )
     const files = readZip(zip)
     expect([...files.keys()]).toEqual(["a.txt", "dir/b.txt", "café/ü.txt"])
     expect(text(files.get("a.txt"))).toBe("hello")
     expect(files.get("dir/b.txt")).toEqual(big)
     // Deflate actually kicked in for the repetitive text.
     expect(zip.length).toBeLessThan(big.length)
+  })
+
+  test("without a deflate every entry is stored, as in the browser", () => {
+    const big = new TextEncoder().encode("receipt ".repeat(500))
+    const zip = zipSync([{ name: "b.txt", data: big, compress: true }])
+    expect(readZip(zip).get("b.txt")).toEqual(big)
+    expect(zip.length).toBeGreaterThan(big.length)
   })
 })
 
@@ -181,44 +195,161 @@ describe("receipt archive", () => {
     )
   })
 
-  test("streams photos, documents and a README listing what is missing", async () => {
-    const ok = makeSearchedReceipt({ merchant: "Costco", hasImage: true })
-    const broken = makeSearchedReceipt({ merchant: "Shell", hasImage: true })
+  test("the manifest lists photos with their paths and no storage keys", () => {
+    const withPhoto = makeSearchedReceipt({ merchant: "Costco", hasImage: true })
     const typed = makeSearchedReceipt({ merchant: "Typed in", hasImage: false })
-    const receipts = [ok, broken, typed]
-    const photoPaths = archivePhotoPaths(receipts, "month")
 
-    const stream = receiptArchiveStream({
-      receipts,
+    const manifest = buildArchiveManifest([withPhoto, typed], {
       organize: "month",
+      scopeLabel: "Personal receipts",
       from: "2025-01-01",
       to: "2025-12-31",
-      scopeLabel: "Personal receipts",
       generatedAt: new Date("2026-01-01T00:00:00Z"),
-      photoPaths,
+      fileName: "receipts-2025-01-01-to-2025-12-31.zip",
+    })
+
+    expect(manifest.rootName).toBe("receipts-2025-01-01-to-2025-12-31")
+    expect(manifest.receiptCount).toBe(2)
+    expect(manifest.photos).toEqual([
+      {
+        receiptId: withPhoto.id,
+        path: "2025-03 March/2025-03-01 Costco 42.50.jpg",
+        purchasedOn: "2025-03-01",
+        merchant: "Costco",
+        totalCents: 4250,
+        currency: "CAD",
+      },
+    ])
+    expect(JSON.stringify(manifest)).not.toContain("receipts/user_")
+  })
+
+  test("builds the archive from fetched photos, with documents and a README", async () => {
+    const ok = makeSearchedReceipt({ merchant: "Costco", hasImage: true })
+    const gone = makeSearchedReceipt({ merchant: "Shell", hasImage: true })
+    const typed = makeSearchedReceipt({ merchant: "Typed in", hasImage: false })
+    const manifest = buildArchiveManifest([ok, gone, typed], {
+      organize: "month",
+      scopeLabel: "Personal receipts",
+      from: "2025-01-01",
+      to: "2025-12-31",
+      generatedAt: new Date("2026-01-01T00:00:00Z"),
+      fileName: "x.zip",
+    })
+
+    const progress: number[] = []
+    const archive = await buildReceiptArchive({
+      manifest,
       documents: {
         pdf: new TextEncoder().encode("%PDF-fake"),
         xlsx: new Uint8Array([9, 9]),
       },
-      readPhoto: async (id) => {
-        if (id === broken.id) throw new Error("blob store down")
-        return new Uint8Array([0xff, 0xd8, 0xff])
-      },
+      readPhoto: async (id) =>
+        id === gone.id ? null : new Uint8Array([0xff, 0xd8, 0xff]),
+      onProgress: (p) => progress.push(p.done),
     })
 
-    const files = readZip(new Uint8Array(await new Response(stream).arrayBuffer()))
+    const bytes = new Uint8Array(await archiveBlob(archive).arrayBuffer())
+    const files = readZip(bytes)
     const root = "receipts-2025-01-01-to-2025-12-31/"
     expect([...files.keys()]).toEqual([
       `${root}Receipt report.pdf`,
       `${root}Receipts.xlsx`,
-      `${root}${photoPaths.get(ok.id)}`,
+      `${root}${manifest.photos[0].path}`,
       `${root}README.txt`,
     ])
+    expect(files.get(`${root}${manifest.photos[0].path}`)).toEqual(
+      new Uint8Array([0xff, 0xd8, 0xff])
+    )
+    expect(archive.included).toBe(1)
+    expect(archive.missing.map((p) => p.merchant)).toEqual(["Shell"])
+    expect(progress).toEqual([0, 1, 2])
 
     const readme = text(files.get(`${root}README.txt`))
     expect(readme).toContain("3 receipts, 1 photo included.")
     expect(readme).toContain("could not be read")
     expect(readme).toContain("Shell")
     expect(readme).toContain("1 receipt was entered by hand")
+  })
+
+  test("fetches photos a few at a time but writes them in order", async () => {
+    const receipts = Array.from({ length: 6 }, (_, i) =>
+      makeSearchedReceipt({ merchant: `Shop ${i}`, hasImage: true })
+    )
+    const manifest = buildArchiveManifest(receipts, {
+      organize: "none",
+      scopeLabel: "Personal receipts",
+      generatedAt: new Date("2026-01-01T00:00:00Z"),
+      fileName: "x.zip",
+    })
+
+    let inFlight = 0
+    let peak = 0
+    const archive = await buildReceiptArchive({
+      manifest,
+      documents: { pdf: new Uint8Array(), xlsx: new Uint8Array() },
+      concurrency: 3,
+      readPhoto: async (id) => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        // Later photos finish first, so order has to be restored.
+        const index = receipts.findIndex((r) => r.id === id)
+        await new Promise((resolve) => setTimeout(resolve, 12 - index * 2))
+        inFlight--
+        return new TextEncoder().encode(id)
+      },
+    })
+
+    const names = [
+      ...readZip(new Uint8Array(await archiveBlob(archive).arrayBuffer())).keys(),
+    ].filter((n) => n.endsWith(".jpg"))
+    expect(names).toEqual(manifest.photos.map((p) => `${manifest.rootName}/${p.path}`))
+    expect(peak).toBeLessThanOrEqual(3)
+    expect(peak).toBeGreaterThan(1)
+  })
+
+  test("a thrown read or a cancel abandons the archive", async () => {
+    const receipts = [makeSearchedReceipt({ hasImage: true })]
+    const manifest = buildArchiveManifest(receipts, {
+      organize: "month",
+      scopeLabel: "Personal receipts",
+      generatedAt: new Date(),
+      fileName: "x.zip",
+    })
+    const documents = { pdf: new Uint8Array(), xlsx: new Uint8Array() }
+
+    await expect(
+      buildReceiptArchive({
+        manifest,
+        documents,
+        readPhoto: async () => {
+          throw new Error("signed out")
+        },
+      })
+    ).rejects.toThrow("signed out")
+
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      buildReceiptArchive({
+        manifest,
+        documents,
+        readPhoto: async () => new Uint8Array([1]),
+        signal: controller.signal,
+      })
+    ).rejects.toThrow()
+  })
+
+  test("the README notes photos left out when an archive is full", () => {
+    const receipts = [makeSearchedReceipt({ merchant: "Big", hasImage: true })]
+    const manifest = buildArchiveManifest(receipts, {
+      organize: "none",
+      scopeLabel: "Personal receipts",
+      generatedAt: new Date("2026-01-01T00:00:00Z"),
+      fileName: "x.zip",
+    })
+    const readme = archiveReadme(manifest, [], manifest.photos)
+    expect(readme).toContain("0 photos included")
+    expect(readme).toContain("did not fit in one archive")
+    expect(readme).toContain("Big")
   })
 })

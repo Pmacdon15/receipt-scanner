@@ -50,10 +50,14 @@ psql "$DATABASE_URL" -f db/schema.sql
   - `/api/documents/pdf` — the PDF report (`?disposition=inline` to open it
     for printing).
   - `/api/documents/xlsx` — an Excel workbook: summary, one row per receipt,
-    and one row per category share for pivot tables.
-  - `/api/documents/zip` — every receipt photo filed by month (or
-    `?organize=category` / `none`), with the PDF, the workbook and a README.
-    Streamed, up to 1,000 photos per download.
+    and one row per category share for pivot tables (`?photos=month` names
+    each receipt's file in the photo ZIP).
+  - **Download .zip** — a copy of every receipt photo, filed by month (or by
+    category, or one folder), with the PDF, the workbook and a README. Built
+    in the browser: `/api/documents/photos` lists which photos go where, each
+    photo is fetched through `/api/receipts/[id]/image`, and the ZIP is
+    assembled locally, so no single request carries the whole archive. Up to
+    500 photos per download.
 - `/sign-in`, `/sign-up` — Clerk-hosted flows.
 
 ## Data access

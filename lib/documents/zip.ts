@@ -1,12 +1,18 @@
-import { deflateRawSync } from "node:zlib"
-
-// A small ZIP writer: enough for the receipts download (streamed, one photo in
-// memory at a time) and for the .xlsx files, which are ZIPs of XML.
+// A small ZIP writer: enough for the receipt photo download (built in the
+// browser) and for the .xlsx files (built on the server), which are ZIPs of XML.
 //
 // Kept in-house rather than pulling in a library because the format needed is
 // tiny: stored or deflated entries, UTF-8 names, no encryption. It does not
 // write ZIP64, so an archive has to stay under 4 GiB and 65,535 entries;
 // callers check `fits()` before adding and stop early when it says no.
+//
+// No Node or browser APIs beyond TextEncoder, so it runs in both. Compression
+// is passed in (node:zlib on the server); without it every entry is stored,
+// which is what the photo archive wants anyway: JPEGs, PDFs and .xlsx files
+// are already compressed.
+
+/** Raw DEFLATE (no zlib header), e.g. node:zlib's deflateRawSync. */
+export type Deflate = (data: Uint8Array) => Uint8Array
 
 export type ZipEntry = {
   /** Path inside the archive, "/"-separated. */
@@ -15,8 +21,8 @@ export type ZipEntry = {
   /** Shown as the file's modified time when unzipped. Defaults to now. */
   modified?: Date
   /**
-   * Deflate the entry. Off for JPEGs, which are already compressed and only
-   * cost CPU to squeeze again; on for text and XML.
+   * Deflate the entry when the writer has a Deflate. Off for JPEGs, which are
+   * already compressed and only cost CPU to squeeze again; on for text and XML.
    */
   compress?: boolean
 }
@@ -72,6 +78,8 @@ export class ZipWriter {
   private records: CentralRecord[] = []
   private offset = 0
 
+  constructor(private readonly deflate?: Deflate) {}
+
   /** Whether one more entry of about `bytes` still fits without ZIP64. */
   fits(bytes: number): boolean {
     return (
@@ -91,8 +99,8 @@ export class ZipWriter {
 
     let method = 0
     let body = entry.data
-    if (entry.compress && entry.data.length > 0) {
-      const deflated = new Uint8Array(deflateRawSync(entry.data))
+    if (entry.compress && this.deflate && entry.data.length > 0) {
+      const deflated = this.deflate(entry.data)
       if (deflated.length < entry.data.length) {
         method = 8
         body = deflated
@@ -166,13 +174,19 @@ export class ZipWriter {
   }
 }
 
-/** A whole archive in memory, for small ones like an .xlsx. */
-export function zipSync(entries: readonly ZipEntry[]): Uint8Array {
-  const writer = new ZipWriter()
+/** A whole archive in memory, as one array of bytes. */
+export function zipSync(
+  entries: readonly ZipEntry[],
+  { deflate }: { deflate?: Deflate } = {}
+): Uint8Array {
+  const writer = new ZipWriter(deflate)
   const parts: Uint8Array[] = []
   for (const entry of entries) parts.push(...writer.add(entry))
   parts.push(writer.finish())
+  return concat(parts)
+}
 
+export function concat(parts: readonly Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((sum, p) => sum + p.length, 0))
   let offset = 0
   for (const part of parts) {
@@ -180,37 +194,4 @@ export function zipSync(entries: readonly ZipEntry[]): Uint8Array {
     offset += part.length
   }
   return out
-}
-
-/**
- * Streams an archive as entries arrive, so a download of hundreds of photos
- * never holds more than one of them in memory.
- *
- * `entries` receives the writer so it can check `fits()` and stop early.
- */
-export function zipStream(
-  entries: (writer: ZipWriter) => AsyncIterable<ZipEntry>
-): ReadableStream<Uint8Array> {
-  const writer = new ZipWriter()
-  let iterator: AsyncIterator<ZipEntry> | undefined
-
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        iterator ??= entries(writer)[Symbol.asyncIterator]()
-        const next = await iterator.next()
-        if (next.done) {
-          controller.enqueue(writer.finish())
-          controller.close()
-          return
-        }
-        for (const chunk of writer.add(next.value)) controller.enqueue(chunk)
-      } catch (error) {
-        controller.error(error)
-      }
-    },
-    async cancel() {
-      await iterator?.return?.()
-    },
-  })
 }
