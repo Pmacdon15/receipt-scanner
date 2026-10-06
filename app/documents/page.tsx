@@ -1,8 +1,11 @@
 import type { Metadata } from "next"
-import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { auth } from "@clerk/nextjs/server"
 import { LockIcon, TriangleAlertIcon } from "lucide-react"
 
+import {
+  ReturnSignInButton,
+  ReturnSignUpButton,
+} from "@/components/auth/return-auth-buttons"
 import { DownloadPanel } from "@/components/documents/download-panel"
 import { PeriodFilters } from "@/components/documents/period-filters"
 import { ReportView } from "@/components/documents/report-view"
@@ -104,14 +107,14 @@ function SignedOutPrompt() {
       </p>
 
       <div className="mt-6 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-        <SignInButton mode="modal">
+        <ReturnSignInButton>
           <Button variant="outline" className="w-full sm:w-auto">
             Sign in
           </Button>
-        </SignInButton>
-        <SignUpButton mode="modal">
+        </ReturnSignInButton>
+        <ReturnSignUpButton>
           <Button className="w-full sm:w-auto">Create an account</Button>
-        </SignUpButton>
+        </ReturnSignUpButton>
       </div>
     </div>
   )

@@ -3,9 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
-import { SignInButton, SignUpButton, useAuth, UserButton } from "@clerk/nextjs"
+import { useAuth, UserButton } from "@clerk/nextjs"
 import { MenuIcon, ReceiptTextIcon } from "lucide-react"
 
+import {
+  ReturnSignInButton,
+  ReturnSignUpButton,
+} from "@/components/auth/return-auth-buttons"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -59,14 +63,14 @@ export function SiteHeader() {
 
           {isLoaded && !isSignedIn && (
             <div className="hidden items-center gap-2 sm:flex">
-              <SignInButton mode="modal">
+              <ReturnSignInButton>
                 <Button variant="ghost" size="sm">
                   Sign in
                 </Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
+              </ReturnSignInButton>
+              <ReturnSignUpButton>
                 <Button size="sm">Get started</Button>
-              </SignUpButton>
+              </ReturnSignUpButton>
             </div>
           )}
 
@@ -112,14 +116,14 @@ export function SiteHeader() {
 
               {isLoaded && !isSignedIn && (
                 <div className="mt-auto flex flex-col gap-2 border-t p-4">
-                  <SignInButton mode="modal">
+                  <ReturnSignInButton>
                     <Button variant="outline" className="w-full">
                       Sign in
                     </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
+                  </ReturnSignInButton>
+                  <ReturnSignUpButton>
                     <Button className="w-full">Get started</Button>
-                  </SignUpButton>
+                  </ReturnSignUpButton>
                 </div>
               )}
             </SheetContent>

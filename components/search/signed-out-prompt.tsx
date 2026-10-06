@@ -1,6 +1,9 @@
-import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { LockIcon } from "lucide-react"
 
+import {
+  ReturnSignInButton,
+  ReturnSignUpButton,
+} from "@/components/auth/return-auth-buttons"
 import { Button } from "@/components/ui/button"
 
 export function SignedOutPrompt() {
@@ -19,14 +22,14 @@ export function SignedOutPrompt() {
       </p>
 
       <div className="mt-6 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-        <SignInButton mode="modal">
+        <ReturnSignInButton>
           <Button variant="outline" className="w-full sm:w-auto">
             Sign in
           </Button>
-        </SignInButton>
-        <SignUpButton mode="modal">
+        </ReturnSignInButton>
+        <ReturnSignUpButton>
           <Button className="w-full sm:w-auto">Create an account</Button>
-        </SignUpButton>
+        </ReturnSignUpButton>
       </div>
     </div>
   )
