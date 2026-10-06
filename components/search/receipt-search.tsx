@@ -30,6 +30,7 @@ import type {
 } from "@/lib/dal/receipts"
 import type { SearchPageData, SearchViewer } from "@/lib/dal/search-page"
 import {
+  documentsHref,
   formValue,
   hasActiveFilters,
   nextSearchParams,
@@ -321,7 +322,10 @@ function SearchWorkspace({
           )}
         >
           <TypeChips results={shown} current={current} />
-          <Stats results={shown} />
+          <Stats
+            results={shown}
+            exportHref={documentsHref({ ...current, scope: shown.scope })}
+          />
           <SearchResults
             receipts={shown.receipts}
             showUploader={shown.scope === "org"}

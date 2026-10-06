@@ -43,6 +43,17 @@ psql "$DATABASE_URL" -f db/schema.sql
   amount, with per-type counts. When a Clerk organization is active it can
   switch between "My receipts" and the organization's receipts. All filters
   live in the URL, so a search can be bookmarked or shared.
+- `/documents` — totals for a period (quick ranges or custom dates, mine or
+  the organization's): by category and by month, then every receipt, laid out
+  to print from the browser. Downloads, all built from the same query string
+  as the page (and as `/search`, which links here with its filters):
+  - `/api/documents/pdf` — the PDF report (`?disposition=inline` to open it
+    for printing).
+  - `/api/documents/xlsx` — an Excel workbook: summary, one row per receipt,
+    and one row per category share for pivot tables.
+  - `/api/documents/zip` — every receipt photo filed by month (or
+    `?organize=category` / `none`), with the PDF, the workbook and a README.
+    Streamed, up to 1,000 photos per download.
 - `/sign-in`, `/sign-up` — Clerk-hosted flows.
 
 ## Data access

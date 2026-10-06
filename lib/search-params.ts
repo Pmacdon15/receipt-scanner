@@ -90,6 +90,13 @@ export function searchPageHref(params: ReceiptSearchParams): string {
   return query ? `/search?${query}` : "/search"
 }
 
+// The /documents page (reports and downloads) for the same filters. Sort and
+// page do not apply there: a report covers every match, oldest first.
+export function documentsHref(params: ReceiptSearchParams): string {
+  const query = searchQueryString({ ...params, sort: undefined, page: undefined })
+  return query ? `/documents?${query}` : "/documents"
+}
+
 // The autocomplete route. Same params as the page, same parser on the server.
 export function searchApiHref(params: ReceiptSearchParams): string {
   const query = searchQueryString(params)
