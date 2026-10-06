@@ -5,6 +5,7 @@ import { classifyReceiptSafely } from "@/lib/classify-receipt"
 import {
   deleteReceipt,
   insertReceipt,
+  selectMerchantSuggestions,
   selectReceiptById,
   selectReceipts,
   searchReceipts as searchReceiptRows,
@@ -12,6 +13,7 @@ import {
   selectVisibleReceiptImage,
   updateReceiptType,
   type ReceiptListRow,
+  type ReceiptScope,
   type ReceiptTotals,
   type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
@@ -268,31 +270,36 @@ export type ReceiptSearchResults = {
   pageSize: number
 }
 
+// "org" falls back to "mine" when no organization is active, so a search never
+// reaches another organization's receipts.
+async function resolveSearchScope(requested: SearchScope) {
+  const userId = await requireUserId()
+  const orgId = await getActiveOrgId()
+  const scope: SearchScope = requested === "org" && orgId ? "org" : "mine"
+  const where: ReceiptScope =
+    scope === "org" ? { kind: "org", orgId: orgId! } : { kind: "user", userId }
+  return { userId, orgId, scope, where }
+}
+
 export const searchReceipts = cache(
   async (params: ReceiptSearchParams): Promise<ReceiptSearchResults> => {
-    const userId = await requireUserId()
-    const orgId = await getActiveOrgId()
-
-    const scope: SearchScope = params.scope === "org" && orgId ? "org" : "mine"
+    const { userId, orgId, scope, where } = await resolveSearchScope(
+      params.scope
+    )
     const pageSize = clampInt(params.pageSize, 25, 1, 100)
     const page = clampInt(params.page, 1, 1, 10_000)
 
-    const result = await searchReceiptRows(
-      scope === "org"
-        ? { kind: "org", orgId: orgId! }
-        : { kind: "user", userId },
-      {
-        query: params.query,
-        receiptTypes: params.receiptTypes,
-        purchasedFrom: params.purchasedFrom,
-        purchasedTo: params.purchasedTo,
-        minTotalCents: params.minTotalCents,
-        maxTotalCents: params.maxTotalCents,
-        sort: params.sort,
-        limit: pageSize,
-        offset: (page - 1) * pageSize,
-      }
-    )
+    const result = await searchReceiptRows(where, {
+      query: params.query,
+      receiptTypes: params.receiptTypes,
+      purchasedFrom: params.purchasedFrom,
+      purchasedTo: params.purchasedTo,
+      minTotalCents: params.minTotalCents,
+      maxTotalCents: params.maxTotalCents,
+      sort: params.sort,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    })
 
     const receipts = result.rows.map(toReceipt)
     const names =
@@ -318,6 +325,42 @@ export const searchReceipts = cache(
     }
   }
 )
+
+export type MerchantSuggestion = {
+  merchant: string
+  receiptCount: number
+}
+
+export type ReceiptSearchWithSuggestions = ReceiptSearchResults & {
+  suggestions: MerchantSuggestion[]
+}
+
+/**
+ * A full page of search results plus merchant suggestions for the query.
+ *
+ * Backs the search box's autocomplete (via /api/receipts/search). It returns
+ * the same result shape the page renders, so whatever the autocomplete has
+ * already fetched can be shown straight away when that search is submitted.
+ */
+export async function searchReceiptsWithSuggestions(
+  params: ReceiptSearchParams
+): Promise<ReceiptSearchWithSuggestions> {
+  const { where } = await resolveSearchScope(params.scope)
+  const query = params.query?.trim() ?? ""
+
+  const [results, suggestions] = await Promise.all([
+    searchReceipts(params),
+    query ? selectMerchantSuggestions(where, query) : Promise.resolve([]),
+  ])
+
+  return {
+    ...results,
+    suggestions: suggestions.map((s) => ({
+      merchant: s.merchant,
+      receiptCount: s.receipt_count,
+    })),
+  }
+}
 
 function clampInt(
   value: number | undefined,

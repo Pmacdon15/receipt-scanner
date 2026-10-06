@@ -31,7 +31,7 @@ export default defineConfig({
   ],
   // Runs against a production build, as the Next.js testing guide recommends.
   webServer: {
-    command: `npm run build && npm run start -- --port ${PORT}`,
+    command: `bun run build && bun run start --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,

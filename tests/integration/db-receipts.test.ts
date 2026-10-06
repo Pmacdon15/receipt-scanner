@@ -14,6 +14,8 @@ import {
   deleteReceipt,
   insertReceipt,
   searchReceipts,
+  searchTerms,
+  selectMerchantSuggestions,
   selectReceiptById,
   selectReceipts,
   selectReceiptTotals,
@@ -390,5 +392,126 @@ describe("searchReceipts", () => {
       matchTotalCents: 0,
       typeFacets: [],
     })
+  })
+})
+
+describe("searchReceipts with several words or an amount", () => {
+  const mine = { kind: "user", userId: "user_a" } as const
+
+  beforeEach(async () => {
+    await insertReceipt(
+      "user_a",
+      receipt({
+        merchant: "Costco Wholesale",
+        totalCents: 8450,
+        rawText: "KIRKLAND GAS 40.00L",
+      })
+    )
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Costco Gas", totalCents: 1250 })
+    )
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Shell", totalCents: 1250, notes: "road trip" })
+    )
+  })
+
+  test("every word has to match, in any field and any order", async () => {
+    const both = await searchReceipts(mine, { query: "gas costco" })
+    expect(both.rows.map((r) => r.merchant).sort()).toEqual([
+      "Costco Gas",
+      "Costco Wholesale",
+    ])
+
+    const narrow = await searchReceipts(mine, { query: "costco kirkland" })
+    expect(narrow.rows.map((r) => r.merchant)).toEqual(["Costco Wholesale"])
+
+    expect((await searchReceipts(mine, { query: "costco trip" })).matchCount)
+      .toBe(0)
+  })
+
+  test("an amount matches receipt totals", async () => {
+    const result = await searchReceipts(mine, { query: "12.50" })
+    expect(result.rows.map((r) => r.merchant).sort()).toEqual([
+      "Costco Gas",
+      "Shell",
+    ])
+    expect((await searchReceipts(mine, { query: "$84.5" })).matchCount).toBe(1)
+  })
+
+  test("an amount combines with words", async () => {
+    const result = await searchReceipts(mine, { query: "shell 12.50" })
+    expect(result.rows.map((r) => r.merchant)).toEqual(["Shell"])
+  })
+
+  test("a number too large for a total is just text, not an error", async () => {
+    const result = await searchReceipts(mine, { query: "123456789012" })
+    expect(result.matchCount).toBe(0)
+  })
+})
+
+describe("searchTerms", () => {
+  test("splits on whitespace and drops blanks", () => {
+    expect(searchTerms("  costco   gas ")).toEqual(["costco", "gas"])
+    expect(searchTerms("   ")).toEqual([])
+    expect(searchTerms(undefined)).toEqual([])
+  })
+
+  test("keeps at most eight words", () => {
+    expect(searchTerms("a b c d e f g h i j")).toHaveLength(8)
+  })
+})
+
+describe("selectMerchantSuggestions", () => {
+  const mine = { kind: "user", userId: "user_a" } as const
+  const org = { kind: "org", orgId: "org_1" } as const
+
+  beforeEach(async () => {
+    for (const merchant of ["Costco", "COSTCO", "costco", "Costco Gas"]) {
+      await insertReceipt("user_a", receipt({ merchant }))
+    }
+    await insertReceipt("user_a", receipt({ merchant: "Pharmasave Coast" }))
+    await insertReceipt(
+      "user_b",
+      receipt({ merchant: "Costa Coffee", orgId: "org_1" })
+    )
+  })
+
+  test("puts names that start with the text first, then the most used", async () => {
+    const rows = await selectMerchantSuggestions(mine, "cost")
+    expect(rows.map((r) => r.merchant.toLowerCase())).toEqual([
+      "costco",
+      "costco gas",
+    ])
+    expect(rows[0].receipt_count).toBe(3)
+
+    const anywhere = await selectMerchantSuggestions(mine, "coast")
+    expect(anywhere.map((r) => r.merchant)).toEqual(["Pharmasave Coast"])
+  })
+
+  test("folds case variants of one name into a single suggestion", async () => {
+    const rows = await selectMerchantSuggestions(mine, "costco")
+    expect(
+      rows.filter((r) => r.merchant.toLowerCase() === "costco")
+    ).toHaveLength(1)
+  })
+
+  test("stays inside the scope", async () => {
+    expect(
+      (await selectMerchantSuggestions(mine, "costa")).map((r) => r.merchant)
+    ).toEqual([])
+    expect(
+      (await selectMerchantSuggestions(org, "cost")).map((r) => r.merchant)
+    ).toEqual(["Costa Coffee"])
+  })
+
+  test("honours the limit and returns nothing for blank text", async () => {
+    expect(await selectMerchantSuggestions(mine, "c", 1)).toHaveLength(1)
+    expect(await selectMerchantSuggestions(mine, "   ")).toEqual([])
+  })
+
+  test("treats LIKE wildcards literally", async () => {
+    expect(await selectMerchantSuggestions(mine, "%")).toEqual([])
   })
 })

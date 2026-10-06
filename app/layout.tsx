@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
+import { QueryProvider } from "@/components/query-provider"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
@@ -42,18 +43,20 @@ export default function RootLayout({
     >
       <body className="min-h-dvh bg-background text-foreground">
         <ClerkProvider>
-          <ThemeProvider>
-            <div className="flex min-h-dvh flex-col">
-              <SiteHeader />
-              <main className="flex-1">{children}</main>
-              <footer className="border-t py-6">
-                <div className="mx-auto w-full max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
-                  {site.name} — {site.tagline}
-                </div>
-              </footer>
-            </div>
-            <Toaster />
-          </ThemeProvider>
+          <QueryProvider>
+            <ThemeProvider>
+              <div className="flex min-h-dvh flex-col">
+                <SiteHeader />
+                <main className="flex-1">{children}</main>
+                <footer className="border-t py-6">
+                  <div className="mx-auto w-full max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
+                    {site.name} — {site.tagline}
+                  </div>
+                </footer>
+              </div>
+              <Toaster />
+            </ThemeProvider>
+          </QueryProvider>
         </ClerkProvider>
       </body>
     </html>
