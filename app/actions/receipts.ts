@@ -6,6 +6,7 @@ import {
   createReceipt,
   InvalidInputError,
   removeReceipt,
+  requireUserId,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
@@ -19,6 +20,7 @@ import {
   suggestReceiptTypeInputSchema,
   type ScanReceiptField,
 } from "@/lib/schemas"
+import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 
 export type ScanFormState = {
   status: "idle" | "success" | "error"
@@ -45,6 +47,21 @@ export async function scanReceiptAction(
   const form = parsed.data
 
   try {
+    // The browser posts back the pathname the upload route minted for it, so it
+    // is user input and is checked against the caller's own blob folder here —
+    // otherwise one user could attach another user's photo to their receipt.
+    const rawPathname = formData.get("imagePathname")
+    const hasPathname = typeof rawPathname === "string" && rawPathname !== ""
+    const userId = await requireUserId()
+
+    if (hasPathname && !isOwnReceiptImagePathname(rawPathname, userId)) {
+      return {
+        status: "error",
+        message: "That photo could not be attached. Try scanning it again.",
+        fieldErrors: { image: "That photo is not available to attach." },
+      }
+    }
+
     const receipt = await createReceipt({
       merchant: form.merchant,
       purchasedOn: form.purchasedOn,
@@ -54,6 +71,7 @@ export async function scanReceiptAction(
       totalCents: form.total,
       receiptType: form.receiptType,
       rawText: form.rawText,
+      imageUrl: hasPathname ? rawPathname : null,
       notes: form.notes,
     })
 

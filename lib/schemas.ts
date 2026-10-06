@@ -136,6 +136,10 @@ export const scanReceiptFormSchema = z.object({
       .max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG)
       .nullable()
   ),
+  imagePathname: z.preprocess(
+    formTextOrNull,
+    z.string().max(500).nullable().optional()
+  ),
   notes: z.preprocess(
     formTextOrNull,
     z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable()
@@ -143,7 +147,7 @@ export const scanReceiptFormSchema = z.object({
 })
 
 export type ScanReceiptForm = z.infer<typeof scanReceiptFormSchema>
-export type ScanReceiptField = keyof ScanReceiptForm
+export type ScanReceiptField = keyof ScanReceiptForm | "image"
 
 // ---------------------------------------------------------------------------
 // Receipt writes (lib/dal/receipts.ts)
@@ -161,6 +165,7 @@ export const newReceiptSchema = z.object({
   totalCents: centsSchema,
   receiptType: receiptTypeIdSchema.optional(),
   rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullable(),
+  imageUrl: z.string().max(500).nullish(),
   notes: z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable(),
 })
 
@@ -179,6 +184,86 @@ export const suggestReceiptTypeInputSchema = z.object({
 export type SuggestReceiptTypeInput = z.infer<
   typeof suggestReceiptTypeInputSchema
 >
+
+// ---------------------------------------------------------------------------
+// Image storage & upload schemas
+
+export const MAX_IMAGE_BYTES = 3 * 1024 * 1024
+export const IMAGE_CONTENT_TYPE = "image/jpeg"
+
+export const receiptImagePathnameRegex =
+  /^receipts\/[A-Za-z0-9_-]{1,128}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/
+
+export const receiptImagePathnameSchema = z
+  .string()
+  .regex(receiptImagePathnameRegex, "Invalid receipt photo pathname.")
+
+export const imageUploadFileSchema = z
+  .custom<Blob>((val) => typeof Blob !== "undefined" && val instanceof Blob, {
+    message: "No photo was attached.",
+  })
+  .superRefine((file, ctx) => {
+    if (file.type !== IMAGE_CONTENT_TYPE) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Only JPEG photos can be uploaded.",
+        params: { status: 415 },
+      })
+    } else if (file.size === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "That photo was empty.",
+        params: { status: 400 },
+      })
+    } else if (file.size > MAX_IMAGE_BYTES) {
+      ctx.addIssue({
+        code: "custom",
+        message: "That photo is too large.",
+        params: { status: 413 },
+      })
+    }
+  })
+
+export const clientImageFileSchema = z
+  .custom<File>((val) => typeof File !== "undefined" && val instanceof File, {
+    message: "Pick an image file — a photo, screenshot, or scan.",
+  })
+  .refine((file) => file.type.startsWith("image/"), {
+    message: "Pick an image file — a photo, screenshot, or scan.",
+  })
+
+export const imageUploadResponseSchema = z.object({
+  pathname: receiptImagePathnameSchema,
+})
+
+export type ImageUploadResponse = z.infer<typeof imageUploadResponseSchema>
+
+export const apiErrorResponseSchema = z.object({
+  error: z.string(),
+})
+
+export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>
+
+// ---------------------------------------------------------------------------
+// Extraction seam (lib/extract-receipt.ts)
+
+export const extractedFieldsSchema = z.object({
+  merchant: z.string().max(MERCHANT_MAX, MERCHANT_TOO_LONG).optional(),
+  purchasedOn: isoDateSchema.optional(),
+  total: z.string().optional(),
+  subtotal: z.string().optional(),
+  tax: z.string().optional(),
+  rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).optional(),
+})
+
+export type ExtractedFields = z.infer<typeof extractedFieldsSchema>
+
+export const extractionResultSchema = z.object({
+  recognised: z.boolean(),
+  fields: extractedFieldsSchema,
+})
+
+export type ExtractionResult = z.infer<typeof extractionResultSchema>
 
 // What a classifier (keyword scoring today, OCR/AI later) must hand back.
 // Confidence matches the receipts_confidence_check constraint in the schema.
