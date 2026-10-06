@@ -100,6 +100,8 @@ describe("ScanForm", () => {
     }))
     const view = render(<ScanForm />)
 
+    fireEvent.change(input(view, "Merchant"), { target: { value: "Shell" } })
+    fireEvent.change(input(view, "Total"), { target: { value: "54.10" } })
     fireEvent.submit(
       view.getByRole("button", { name: "Save receipt" }).closest("form")!
     )
@@ -135,5 +137,15 @@ describe("ScanForm", () => {
     await waitFor(() => expect(input(view, "Merchant").value).toBe(""))
     expect(input(view, "Total").value).toBe("")
     expect(input(view, "Notes").value).toBe("")
+  })
+
+  test("allows switching between photo scan and manual entry tabs", () => {
+    const view = render(<ScanForm />)
+    const scanTab = view.getByRole("tab", { name: /Scan a photo/ })
+    const manualTab = view.getByRole("tab", { name: /Enter by hand/ })
+
+    expect(scanTab.getAttribute("aria-selected")).toBe("true")
+    fireEvent.click(manualTab)
+    expect(manualTab.getAttribute("aria-selected")).toBe("true")
   })
 })

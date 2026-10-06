@@ -88,4 +88,21 @@ describe("ReceiptList", () => {
     )
     expect(toast.success).not.toHaveBeenCalled()
   })
+
+  test("shows a photo button only when a receipt has an image", () => {
+    const withPhoto = makeReceipt({ merchant: "With Photo", hasImage: true })
+    const withoutPhoto = makeReceipt({ merchant: "No Photo", hasImage: false })
+    const view = render(<ReceiptList receipts={[withPhoto, withoutPhoto]} />)
+
+    expect(
+      view.getByRole("button", {
+        name: "View the photo of the receipt from With Photo",
+      })
+    ).toBeTruthy()
+    expect(
+      view.queryByRole("button", {
+        name: "View the photo of the receipt from No Photo",
+      })
+    ).toBeNull()
+  })
 })

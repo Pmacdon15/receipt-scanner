@@ -14,8 +14,10 @@ import { createTestDb, type TestDb } from "../helpers/test-db"
 import {
   createReceipt,
   getReceipt,
+  getReceiptImage,
   getReceipts,
   getReceiptTotals,
+  InvalidInputError,
   removeReceipt,
   searchReceipts,
   setReceiptType,
@@ -23,6 +25,7 @@ import {
   UnauthorizedError,
   type NewReceipt,
 } from "@/lib/dal/receipts"
+import { newReceiptImagePathname } from "@/lib/receipt-image"
 
 let testDb: TestDb
 
@@ -59,6 +62,10 @@ describe("when signed out", () => {
   test.each([
     ["getReceipts", () => getReceipts()],
     ["getReceipt", () => getReceipt("00000000-0000-0000-0000-000000000000")],
+    [
+      "getReceiptImage",
+      () => getReceiptImage("00000000-0000-0000-0000-000000000000"),
+    ],
     ["getReceiptTotals", () => getReceiptTotals()],
     ["createReceipt", () => createReceipt(newReceipt())],
     ["setReceiptType", () => setReceiptType("x", "fuel")],
@@ -116,6 +123,23 @@ describe("createReceipt", () => {
   test("files the receipt under the active organization", async () => {
     signIn("user_a", "org_1")
     expect((await createReceipt(newReceipt())).orgId).toBe("org_1")
+  })
+
+  test("stores an owned photo and marks hasImage true", async () => {
+    signIn("user_a")
+    const pathname = newReceiptImagePathname("user_a")
+    const receipt = await createReceipt(newReceipt({ imageUrl: pathname }))
+    expect(receipt.hasImage).toBe(true)
+    expect((receipt as Record<string, unknown>).imageUrl).toBeUndefined()
+    expect(await getReceiptImage(receipt.id)).toBe(pathname)
+  })
+
+  test("refuses to store a photo belonging to another user", async () => {
+    signIn("user_a")
+    const otherPathname = newReceiptImagePathname("user_b")
+    await expect(
+      createReceipt(newReceipt({ imageUrl: otherPathname }))
+    ).rejects.toBeInstanceOf(InvalidInputError)
   })
 })
 
@@ -177,6 +201,25 @@ describe("reading and changing receipts", () => {
       receiptType: "other",
       detectedType: null,
     })
+  })
+
+  test("getReceiptImage scopes lookup to the signed-in owner", async () => {
+    signIn("user_a")
+    const pathname = newReceiptImagePathname("user_a")
+    const mine = await createReceipt(newReceipt({ imageUrl: pathname }))
+
+    signIn("user_b")
+    expect(await getReceiptImage(mine.id)).toBeNull()
+
+    signIn("user_a")
+    expect(await getReceiptImage(mine.id)).toBe(pathname)
+  })
+
+  test("getReceiptImage returns null for invalid ids or receipts without image", async () => {
+    signIn("user_a")
+    const withoutPhoto = await createReceipt(newReceipt())
+    expect(await getReceiptImage(withoutPhoto.id)).toBeNull()
+    expect(await getReceiptImage("not-a-uuid")).toBeNull()
   })
 })
 

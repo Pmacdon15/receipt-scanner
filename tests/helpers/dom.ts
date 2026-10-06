@@ -14,7 +14,12 @@ export async function setupDom() {
   const testingLibrary = await import("@testing-library/react")
 
   afterEach(() => testingLibrary.cleanup())
-  afterAll(() => GlobalRegistrator.unregister())
+  // In --isolate mode, the process terminates after all tests, so tearing down
+  // globals early risks pending React 19 scheduler callbacks hitting missing window.
+  afterAll(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    GlobalRegistrator.unregister()
+  })
 
   return testingLibrary
 }

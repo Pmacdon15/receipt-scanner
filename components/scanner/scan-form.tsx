@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Loader2Icon, SparklesIcon, WandSparklesIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  PencilLineIcon,
+  ScanLineIcon,
+  SparklesIcon,
+  WandSparklesIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -9,6 +15,10 @@ import {
   suggestReceiptTypeAction,
   type ScanFormState,
 } from "@/app/actions/receipts"
+import {
+  ScanCapture,
+  type CapturedImage,
+} from "@/components/scanner/scan-capture"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,8 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
+import {
+  fieldErrorsFrom,
+  scanReceiptFormSchema,
+  suggestReceiptTypeInputSchema,
+  type ScanReceiptField,
+} from "@/lib/schemas"
 
 const AUTO = ""
 
@@ -48,6 +65,9 @@ const SELECT_ITEMS: Record<string, React.ReactNode> = {
 
 type Suggestion = { type: string; confidence: number } | null
 
+/** Whether the user is attaching a photo or typing the receipt in by hand. */
+type Mode = "scan" | "manual"
+
 export function ScanForm() {
   const formRef = React.useRef<HTMLFormElement>(null)
   const [state, setState] = React.useState<ScanFormState>(INITIAL_STATE)
@@ -59,6 +79,9 @@ export function ScanForm() {
   const [suggestion, setSuggestion] = React.useState<Suggestion>(null)
   const [isDetecting, startDetecting] = React.useTransition()
 
+  const [mode, setMode] = React.useState<Mode>("scan")
+  const [capture, setCapture] = React.useState<CapturedImage | null>(null)
+
   // Preview what detection would pick, so the user can see the auto choice
   // before anything is saved. The debounce callback owns every state update
   // here, so nothing is set synchronously while the effect runs.
@@ -69,8 +92,19 @@ export function ScanForm() {
         return
       }
 
+      // Text the server would reject anyway (too long) is not worth a round
+      // trip; the save-time validation reports it.
+      const input = suggestReceiptTypeInputSchema.safeParse({
+        merchant,
+        rawText,
+      })
+      if (!input.success) {
+        setSuggestion(null)
+        return
+      }
+
       startDetecting(async () => {
-        const result = await suggestReceiptTypeAction({ merchant, rawText })
+        const result = await suggestReceiptTypeAction(input.data)
         setSuggestion(
           result.status === "success" && result.confidence > 0
             ? { type: result.type, confidence: result.confidence }
@@ -83,6 +117,20 @@ export function ScanForm() {
   }, [merchant, rawText])
 
   function handleSubmit(formData: FormData) {
+    // Check in the browser first so mistakes show up without a round trip.
+    // The action re-validates with the same schema.
+    const parsed = scanReceiptFormSchema.safeParse(Object.fromEntries(formData))
+    if (!parsed.success) {
+      const message = "Fix the highlighted fields and try again."
+      setState({
+        status: "error",
+        message,
+        fieldErrors: fieldErrorsFrom<ScanReceiptField>(parsed.error),
+      })
+      toast.error(message)
+      return
+    }
+
     startSubmitting(async () => {
       const result = await scanReceiptAction(state, formData)
       setState(result)
@@ -94,6 +142,7 @@ export function ScanForm() {
         setRawText("")
         setReceiptType(AUTO)
         setSuggestion(null)
+        setCapture(null)
       } else {
         toast.error(result.message)
       }
@@ -107,13 +156,61 @@ export function ScanForm() {
       <CardHeader>
         <CardTitle>Scan a receipt</CardTitle>
         <CardDescription>
-          Enter what the receipt says. The category is detected as you type —
-          override it any time.
+          Scan a photo or type the receipt in. The category is detected as you
+          go — override it any time.
         </CardDescription>
       </CardHeader>
 
       <form ref={formRef} action={handleSubmit}>
         <CardContent className="grid gap-5">
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              const next = (value ?? "scan") as Mode
+              setMode(next)
+              // Leaving scan mode drops the photo, so switching away cannot
+              // post an image the user thinks they abandoned.
+              if (next === "manual") setCapture(null)
+            }}
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="scan" className="flex-1">
+                <ScanLineIcon />
+                Scan a photo
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="flex-1">
+                <PencilLineIcon />
+                Enter by hand
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="scan" className="mt-4 grid gap-2">
+              <ScanCapture
+                value={capture}
+                onChange={setCapture}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                The photo is attached to the receipt. Reading the fields off it
+                automatically is not wired up yet, so confirm the details below.
+              </p>
+              {(state.fieldErrors.image || state.fieldErrors.imagePathname) && (
+                <p className="text-xs text-destructive">
+                  {state.fieldErrors.image || state.fieldErrors.imagePathname}
+                </p>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {/* Posts the uploaded photo's blob pathname, not the photo itself —
+              the bytes went straight to the store from ScanCapture. Empty in
+              manual mode, which the action reads as "no image". */}
+          <input
+            type="hidden"
+            name="imagePathname"
+            value={mode === "scan" ? (capture?.pathname ?? "") : ""}
+          />
+
           <div className="grid gap-2">
             <Label htmlFor="merchant">Merchant</Label>
             <Input
@@ -125,17 +222,19 @@ export function ScanForm() {
               aria-invalid={Boolean(state.fieldErrors.merchant)}
               required
             />
-            {state.fieldErrors.merchant && (
-              <p className="text-xs text-destructive">
-                {state.fieldErrors.merchant}
-              </p>
-            )}
+            <FieldError message={state.fieldErrors.merchant} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="purchasedOn">Date</Label>
-              <Input id="purchasedOn" name="purchasedOn" type="date" />
+              <Input
+                id="purchasedOn"
+                name="purchasedOn"
+                type="date"
+                aria-invalid={Boolean(state.fieldErrors.purchasedOn)}
+              />
+              <FieldError message={state.fieldErrors.purchasedOn} />
             </div>
 
             <div className="grid gap-2">
@@ -148,11 +247,7 @@ export function ScanForm() {
                 aria-invalid={Boolean(state.fieldErrors.total)}
                 required
               />
-              {state.fieldErrors.total && (
-                <p className="text-xs text-destructive">
-                  {state.fieldErrors.total}
-                </p>
-              )}
+              <FieldError message={state.fieldErrors.total} />
             </div>
           </div>
 
@@ -164,7 +259,9 @@ export function ScanForm() {
                 name="subtotal"
                 inputMode="decimal"
                 placeholder="Optional"
+                aria-invalid={Boolean(state.fieldErrors.subtotal)}
               />
+              <FieldError message={state.fieldErrors.subtotal} />
             </div>
 
             <div className="grid gap-2">
@@ -174,7 +271,9 @@ export function ScanForm() {
                 name="tax"
                 inputMode="decimal"
                 placeholder="Optional"
+                aria-invalid={Boolean(state.fieldErrors.tax)}
               />
+              <FieldError message={state.fieldErrors.tax} />
             </div>
           </div>
 
@@ -207,11 +306,7 @@ export function ScanForm() {
               onAccept={(type) => setReceiptType(type)}
             />
 
-            {state.fieldErrors.receiptType && (
-              <p className="text-xs text-destructive">
-                {state.fieldErrors.receiptType}
-              </p>
-            )}
+            <FieldError message={state.fieldErrors.receiptType} />
           </div>
 
           <div className="grid gap-2">
@@ -223,12 +318,20 @@ export function ScanForm() {
               placeholder="Paste the receipt text here — it sharpens the detected category."
               value={rawText}
               onChange={(event) => setRawText(event.target.value)}
+              aria-invalid={Boolean(state.fieldErrors.rawText)}
             />
+            <FieldError message={state.fieldErrors.rawText} />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Notes</Label>
-            <Input id="notes" name="notes" placeholder="Optional" />
+            <Input
+              id="notes"
+              name="notes"
+              placeholder="Optional"
+              aria-invalid={Boolean(state.fieldErrors.notes)}
+            />
+            <FieldError message={state.fieldErrors.notes} />
           </div>
         </CardContent>
 
@@ -304,4 +407,9 @@ function DetectionHint({
       )}
     </div>
   )
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="text-xs text-destructive">{message}</p>
 }

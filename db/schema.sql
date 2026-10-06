@@ -14,6 +14,8 @@ create table if not exists receipts (
   detected_type       text,
   detected_confidence real,
   raw_text            text,
+  -- Pathname of the receipt photo in the private Vercel Blob store
+  -- (receipts/<user_id>/<uuid>.jpg), not a URL and not the image itself.
   image_url           text,
   notes               text,
   created_at          timestamptz not null default now(),

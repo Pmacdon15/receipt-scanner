@@ -19,6 +19,7 @@ import {
   type ScanFormState,
 } from "@/app/actions/receipts"
 import { getReceipts } from "@/lib/dal/receipts"
+import { newReceiptImagePathname } from "@/lib/receipt-image"
 
 let testDb: TestDb
 
@@ -185,6 +186,45 @@ describe("scanReceiptAction", () => {
       log.mockRestore()
     }
   })
+
+  test("attaches an uploaded photo pathname and sets hasImage", async () => {
+    signIn("user_a")
+    const pathname = newReceiptImagePathname("user_a")
+
+    const result = await scanReceiptAction(
+      IDLE,
+      form({
+        merchant: "Costco",
+        total: "150.00",
+        imagePathname: pathname,
+      })
+    )
+
+    expect(result.status).toBe("success")
+    const [saved] = await getReceipts()
+    expect(saved.hasImage).toBe(true)
+  })
+
+  test("refuses to attach a photo belonging to another user", async () => {
+    signIn("user_a")
+    const otherUserPathname = newReceiptImagePathname("user_b")
+
+    const result = await scanReceiptAction(
+      IDLE,
+      form({
+        merchant: "Costco",
+        total: "150.00",
+        imagePathname: otherUserPathname,
+      })
+    )
+
+    expect(result).toEqual({
+      status: "error",
+      message: "That photo could not be attached. Try scanning it again.",
+      fieldErrors: { image: "That photo is not available to attach." },
+    })
+    expect(await getReceipts()).toEqual([])
+  })
 })
 
 describe("setReceiptTypeAction", () => {
@@ -228,7 +268,9 @@ describe("setReceiptTypeAction", () => {
   })
 
   test("asks a signed-out user to sign in", async () => {
-    expect(await setReceiptTypeAction("anything", "fuel")).toMatchObject({
+    expect(
+      await setReceiptTypeAction(crypto.randomUUID(), "fuel")
+    ).toMatchObject({
       status: "error",
       message: "Sign in to save receipts.",
     })

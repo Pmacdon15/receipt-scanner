@@ -51,6 +51,7 @@ function receipt(
     detectedType: null,
     detectedConfidence: null,
     rawText: null,
+    imageUrl: null,
     notes: null,
     ...overrides,
   }
@@ -71,6 +72,7 @@ describe("insertReceipt", () => {
       detectedType: "grocery",
       detectedConfidence: 0.76,
       rawText: "milk eggs",
+      imageUrl: null,
       notes: "weekly shop",
     })
 
@@ -88,7 +90,7 @@ describe("insertReceipt", () => {
       detected_type: "grocery",
       raw_text: "milk eggs",
       notes: "weekly shop",
-      image_url: null,
+      has_image: false,
     })
     expect(row.detected_confidence).toBeCloseTo(0.76)
     expect(row.id).toMatch(/^[0-9a-f-]{36}$/)
@@ -108,6 +110,18 @@ describe("insertReceipt", () => {
         receipt({ typeSource: "robot" as InsertReceiptInput["typeSource"] })
       )
     ).rejects.toThrow()
+  })
+
+  test("stores an image_url and returns has_image true", async () => {
+    const row = await insertReceipt(
+      "user_a",
+      receipt({ imageUrl: "receipts/user_a/test-uuid.jpg" })
+    )
+
+    expect(row.has_image).toBe(true)
+
+    const full = await selectReceiptById("user_a", row.id)
+    expect(full?.image_url).toBe("receipts/user_a/test-uuid.jpg")
   })
 })
 
