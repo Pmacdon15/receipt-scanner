@@ -1,5 +1,8 @@
 import { getSql } from "./client"
 import type { ReceiptTypeId } from "@/lib/receipt-types"
+import type { ReceiptSort } from "@/lib/schemas"
+
+export type { ReceiptSort }
 
 export type ReceiptRow = {
   id: string
@@ -207,8 +210,6 @@ export type ReceiptSearchFilters = {
   limit?: number
   offset?: number
 }
-
-export type ReceiptSort = "newest" | "oldest" | "highest" | "lowest"
 
 const ORDER_BY: Record<ReceiptSort, string> = {
   newest: "purchased_on desc nulls last, created_at desc",

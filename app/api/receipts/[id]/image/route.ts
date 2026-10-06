@@ -14,9 +14,7 @@ import { get } from "@vercel/blob"
 import type { NextRequest } from "next/server"
 
 import { getReceiptImage } from "@/lib/dal/receipts"
-
-/** Receipt ids are uuids; anything else would make Postgres throw on the cast. */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { receiptIdSchema } from "@/lib/schemas"
 
 /** One body for every refusal, so a probe cannot tell the cases apart. */
 function notFound() {
@@ -25,13 +23,15 @@ function notFound() {
 
 export async function GET(
   _request: NextRequest,
-  ctx: RouteContext<"/api/receipts/[id]/image">
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth()
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
-  const { id } = await ctx.params
-  if (!UUID.test(id)) return notFound()
+  const params = await ctx.params
+  const parsedId = receiptIdSchema.safeParse(params.id)
+  if (!parsedId.success) return notFound()
+  const id = parsedId.data
 
   // Scoped to the signed-in user inside the DAL: a receipt belonging to
   // somebody else reads as missing, so this is the authorization check.

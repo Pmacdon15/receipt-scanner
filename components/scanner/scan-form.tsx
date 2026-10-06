@@ -41,6 +41,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
+import {
+  fieldErrorsFrom,
+  scanReceiptFormSchema,
+  suggestReceiptTypeInputSchema,
+  type ScanReceiptField,
+} from "@/lib/schemas"
 
 const AUTO = ""
 
@@ -86,8 +92,19 @@ export function ScanForm() {
         return
       }
 
+      // Text the server would reject anyway (too long) is not worth a round
+      // trip; the save-time validation reports it.
+      const input = suggestReceiptTypeInputSchema.safeParse({
+        merchant,
+        rawText,
+      })
+      if (!input.success) {
+        setSuggestion(null)
+        return
+      }
+
       startDetecting(async () => {
-        const result = await suggestReceiptTypeAction({ merchant, rawText })
+        const result = await suggestReceiptTypeAction(input.data)
         setSuggestion(
           result.status === "success" && result.confidence > 0
             ? { type: result.type, confidence: result.confidence }
@@ -100,6 +117,20 @@ export function ScanForm() {
   }, [merchant, rawText])
 
   function handleSubmit(formData: FormData) {
+    // Check in the browser first so mistakes show up without a round trip.
+    // The action re-validates with the same schema.
+    const parsed = scanReceiptFormSchema.safeParse(Object.fromEntries(formData))
+    if (!parsed.success) {
+      const message = "Fix the highlighted fields and try again."
+      setState({
+        status: "error",
+        message,
+        fieldErrors: fieldErrorsFrom<ScanReceiptField>(parsed.error),
+      })
+      toast.error(message)
+      return
+    }
+
     startSubmitting(async () => {
       const result = await scanReceiptAction(state, formData)
       setState(result)
@@ -163,9 +194,9 @@ export function ScanForm() {
                 The photo is attached to the receipt. Reading the fields off it
                 automatically is not wired up yet, so confirm the details below.
               </p>
-              {state.fieldErrors.image && (
+              {(state.fieldErrors.image || state.fieldErrors.imagePathname) && (
                 <p className="text-xs text-destructive">
-                  {state.fieldErrors.image}
+                  {state.fieldErrors.image || state.fieldErrors.imagePathname}
                 </p>
               )}
             </TabsContent>
@@ -191,17 +222,19 @@ export function ScanForm() {
               aria-invalid={Boolean(state.fieldErrors.merchant)}
               required
             />
-            {state.fieldErrors.merchant && (
-              <p className="text-xs text-destructive">
-                {state.fieldErrors.merchant}
-              </p>
-            )}
+            <FieldError message={state.fieldErrors.merchant} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="purchasedOn">Date</Label>
-              <Input id="purchasedOn" name="purchasedOn" type="date" />
+              <Input
+                id="purchasedOn"
+                name="purchasedOn"
+                type="date"
+                aria-invalid={Boolean(state.fieldErrors.purchasedOn)}
+              />
+              <FieldError message={state.fieldErrors.purchasedOn} />
             </div>
 
             <div className="grid gap-2">
@@ -214,11 +247,7 @@ export function ScanForm() {
                 aria-invalid={Boolean(state.fieldErrors.total)}
                 required
               />
-              {state.fieldErrors.total && (
-                <p className="text-xs text-destructive">
-                  {state.fieldErrors.total}
-                </p>
-              )}
+              <FieldError message={state.fieldErrors.total} />
             </div>
           </div>
 
@@ -230,7 +259,9 @@ export function ScanForm() {
                 name="subtotal"
                 inputMode="decimal"
                 placeholder="Optional"
+                aria-invalid={Boolean(state.fieldErrors.subtotal)}
               />
+              <FieldError message={state.fieldErrors.subtotal} />
             </div>
 
             <div className="grid gap-2">
@@ -240,7 +271,9 @@ export function ScanForm() {
                 name="tax"
                 inputMode="decimal"
                 placeholder="Optional"
+                aria-invalid={Boolean(state.fieldErrors.tax)}
               />
+              <FieldError message={state.fieldErrors.tax} />
             </div>
           </div>
 
@@ -273,11 +306,7 @@ export function ScanForm() {
               onAccept={(type) => setReceiptType(type)}
             />
 
-            {state.fieldErrors.receiptType && (
-              <p className="text-xs text-destructive">
-                {state.fieldErrors.receiptType}
-              </p>
-            )}
+            <FieldError message={state.fieldErrors.receiptType} />
           </div>
 
           <div className="grid gap-2">
@@ -289,12 +318,20 @@ export function ScanForm() {
               placeholder="Paste the receipt text here — it sharpens the detected category."
               value={rawText}
               onChange={(event) => setRawText(event.target.value)}
+              aria-invalid={Boolean(state.fieldErrors.rawText)}
             />
+            <FieldError message={state.fieldErrors.rawText} />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="notes">Notes</Label>
-            <Input id="notes" name="notes" placeholder="Optional" />
+            <Input
+              id="notes"
+              name="notes"
+              placeholder="Optional"
+              aria-invalid={Boolean(state.fieldErrors.notes)}
+            />
+            <FieldError message={state.fieldErrors.notes} />
           </div>
         </CardContent>
 
@@ -370,4 +407,9 @@ function DetectionHint({
       )}
     </div>
   )
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="text-xs text-destructive">{message}</p>
 }

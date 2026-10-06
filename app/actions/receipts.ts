@@ -4,63 +4,47 @@ import { revalidatePath } from "next/cache"
 
 import {
   createReceipt,
+  InvalidInputError,
   removeReceipt,
   requireUserId,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
 } from "@/lib/dal/receipts"
-import { parseMoneyToCents } from "@/lib/money"
+import {
+  fieldErrorsFrom,
+  firstErrorMessage,
+  receiptIdSchema,
+  scanReceiptFormSchema,
+  setReceiptTypeInputSchema,
+  suggestReceiptTypeInputSchema,
+  type ScanReceiptField,
+} from "@/lib/schemas"
 import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
-import { isReceiptTypeId } from "@/lib/receipt-types"
 
 export type ScanFormState = {
   status: "idle" | "success" | "error"
   message: string
-  fieldErrors: Partial<
-    Record<"merchant" | "total" | "receiptType" | "image", string>
-  >
+  fieldErrors: Partial<Record<ScanReceiptField, string>>
 }
 
 export async function scanReceiptAction(
   _prevState: ScanFormState,
   formData: FormData
 ): Promise<ScanFormState> {
-  const merchant = String(formData.get("merchant") ?? "").trim()
-  const totalCents = parseMoneyToCents(formData.get("total"))
-  const rawType = formData.get("receiptType")
+  // Same schema the form checks before submitting; re-run here because the
+  // action can be called directly, bypassing the browser.
+  const parsed = scanReceiptFormSchema.safeParse(Object.fromEntries(formData))
 
-  const fieldErrors: ScanFormState["fieldErrors"] = {}
-
-  if (merchant.length === 0) {
-    fieldErrors.merchant = "Enter where the receipt is from."
-  } else if (merchant.length > 200) {
-    fieldErrors.merchant = "Keep the merchant name under 200 characters."
-  }
-
-  if (totalCents === null) {
-    fieldErrors.total = "Enter the receipt total."
-  } else if (totalCents < 0) {
-    fieldErrors.total = "The total cannot be negative."
-  }
-
-  // An empty string means "use whatever detection picked".
-  const wantsExplicitType = typeof rawType === "string" && rawType !== ""
-  if (wantsExplicitType && !isReceiptTypeId(rawType)) {
-    fieldErrors.receiptType = "Pick a type from the list."
-  }
-
-  if (Object.keys(fieldErrors).length > 0) {
+  if (!parsed.success) {
     return {
       status: "error",
       message: "Fix the highlighted fields and try again.",
-      fieldErrors,
+      fieldErrors: fieldErrorsFrom<ScanReceiptField>(parsed.error),
     }
   }
 
-  const purchasedOnRaw = String(formData.get("purchasedOn") ?? "").trim()
-  const notesRaw = String(formData.get("notes") ?? "").trim()
-  const rawTextRaw = String(formData.get("rawText") ?? "").trim()
+  const form = parsed.data
 
   try {
     // The browser posts back the pathname the upload route minted for it, so it
@@ -79,17 +63,16 @@ export async function scanReceiptAction(
     }
 
     const receipt = await createReceipt({
-      merchant,
-      purchasedOn: purchasedOnRaw === "" ? null : purchasedOnRaw,
+      merchant: form.merchant,
+      purchasedOn: form.purchasedOn,
       currency: "CAD",
-      subtotalCents: parseMoneyToCents(formData.get("subtotal")),
-      taxCents: parseMoneyToCents(formData.get("tax")),
-      totalCents: totalCents!,
-      receiptType:
-        wantsExplicitType && isReceiptTypeId(rawType) ? rawType : undefined,
-      rawText: rawTextRaw === "" ? null : rawTextRaw,
+      subtotalCents: form.subtotal,
+      taxCents: form.tax,
+      totalCents: form.total,
+      receiptType: form.receiptType,
+      rawText: form.rawText,
       imageUrl: hasPathname ? rawPathname : null,
-      notes: notesRaw === "" ? null : notesRaw,
+      notes: form.notes,
     })
 
     revalidatePath("/scan")
@@ -105,12 +88,19 @@ export async function scanReceiptAction(
 }
 
 export async function setReceiptTypeAction(id: string, receiptType: string) {
-  if (!isReceiptTypeId(receiptType)) {
-    return { status: "error" as const, message: "Unknown receipt type." }
+  const parsed = setReceiptTypeInputSchema.safeParse({ id, receiptType })
+  if (!parsed.success) {
+    return {
+      status: "error" as const,
+      message: firstErrorMessage(parsed.error, "Unknown receipt type."),
+    }
   }
 
   try {
-    const updated = await setReceiptType(id, receiptType)
+    const updated = await setReceiptType(
+      parsed.data.id,
+      parsed.data.receiptType
+    )
     if (!updated) {
       return { status: "error" as const, message: "Receipt not found." }
     }
@@ -123,8 +113,13 @@ export async function setReceiptTypeAction(id: string, receiptType: string) {
 }
 
 export async function deleteReceiptAction(id: string) {
+  const parsed = receiptIdSchema.safeParse(id)
+  if (!parsed.success) {
+    return { status: "error" as const, message: "Receipt not found." }
+  }
+
   try {
-    const deleted = await removeReceipt(id)
+    const deleted = await removeReceipt(parsed.data)
     if (!deleted) {
       return { status: "error" as const, message: "Receipt not found." }
     }
@@ -140,8 +135,23 @@ export async function suggestReceiptTypeAction(input: {
   merchant?: string | null
   rawText?: string | null
 }) {
+  const parsed = suggestReceiptTypeInputSchema.safeParse(input)
+  if (!parsed.success) {
+    return {
+      status: "error" as const,
+      message: firstErrorMessage(
+        parsed.error,
+        "That text is too long to check."
+      ),
+      fieldErrors: {},
+    }
+  }
+
   try {
-    return { status: "success" as const, ...(await suggestReceiptType(input)) }
+    return {
+      status: "success" as const,
+      ...(await suggestReceiptType(parsed.data)),
+    }
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
   }
@@ -153,6 +163,10 @@ function describeError(error: unknown): {
 } {
   if (error instanceof UnauthorizedError) {
     return { message: "Sign in to save receipts.", fieldErrors: {} }
+  }
+
+  if (error instanceof InvalidInputError) {
+    return { message: error.message, fieldErrors: {} }
   }
 
   console.error("receipt action failed", error)

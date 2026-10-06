@@ -10,23 +10,14 @@
  * stands in for real detection behind a stable return type.
  */
 
-export type ExtractedFields = {
-  merchant?: string
-  /** ISO yyyy-mm-dd, matching the date input the scan form posts. */
-  purchasedOn?: string
-  /** Decimal strings, not cents: these land in text inputs the user confirms. */
-  total?: string
-  subtotal?: string
-  tax?: string
-  /** Full recognised text, which sharpens the existing keyword classifier. */
-  rawText?: string
-}
+import {
+  extractionResultSchema,
+  receiptImagePathnameSchema,
+  type ExtractedFields,
+  type ExtractionResult,
+} from "@/lib/schemas"
 
-export type ExtractionResult = {
-  /** False while OCR is stubbed, so the UI can say the fields need entering. */
-  recognised: boolean
-  fields: ExtractedFields
-}
+export type { ExtractedFields, ExtractionResult }
 
 export const NOT_RECOGNISED: ExtractionResult = {
   recognised: false,
@@ -45,8 +36,17 @@ export async function extractReceiptFields(
   // The parameter is the point: it fixes the signature a real OCR pass reads
   // from. It is the photo's blob pathname, which such a pass would read out of
   // the private store itself rather than being handed the bytes.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   imagePathname: string
 ): Promise<ExtractionResult> {
-  return NOT_RECOGNISED
+  const parsedPath = receiptImagePathnameSchema.safeParse(imagePathname)
+  if (!parsedPath.success) {
+    return NOT_RECOGNISED
+  }
+  return extractionResultSchema.parse(NOT_RECOGNISED)
+}
+
+export function extractReceiptFieldsSafely(
+  imagePathname: string
+): Promise<ExtractionResult> {
+  return extractReceiptFields(imagePathname)
 }

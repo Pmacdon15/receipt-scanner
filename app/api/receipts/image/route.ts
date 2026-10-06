@@ -16,11 +16,12 @@ import { auth } from "@clerk/nextjs/server"
 import { put } from "@vercel/blob"
 import type { NextRequest } from "next/server"
 
+import { newReceiptImagePathname } from "@/lib/receipt-image"
 import {
   IMAGE_CONTENT_TYPE,
-  MAX_IMAGE_BYTES,
-  newReceiptImagePathname,
-} from "@/lib/receipt-image"
+  imageUploadFileSchema,
+  imageUploadResponseSchema,
+} from "@/lib/schemas"
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth()
@@ -41,37 +42,28 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // `File` extends `Blob`; a plain string here means the field was not a file.
-  if (!(file instanceof Blob)) {
-    return Response.json({ error: "No photo was attached." }, { status: 400 })
+  const parsedFile = imageUploadFileSchema.safeParse(file)
+  if (!parsedFile.success) {
+    const issue = parsedFile.error.issues[0]
+    const status =
+      issue && "params" in issue && typeof issue.params === "object" && issue.params !== null && "status" in issue.params
+        ? Number((issue.params as { status?: number }).status)
+        : 400
+    return Response.json({ error: issue.message }, { status })
   }
 
-  // The client compresses before posting, but this is a public endpoint, so the
-  // type and size are re-checked here rather than trusted.
-  if (file.type !== IMAGE_CONTENT_TYPE) {
-    return Response.json(
-      { error: "Only JPEG photos can be uploaded." },
-      { status: 415 }
-    )
-  }
-
-  if (file.size === 0) {
-    return Response.json({ error: "That photo was empty." }, { status: 400 })
-  }
-
-  if (file.size > MAX_IMAGE_BYTES) {
-    return Response.json({ error: "That photo is too large." }, { status: 413 })
-  }
+  const validBlob = parsedFile.data
 
   try {
     // Namespaced by user so the pathname coming back through the form can be
     // checked against the caller before it is stored.
-    const blob = await put(newReceiptImagePathname(userId), file, {
+    const blob = await put(newReceiptImagePathname(userId), validBlob, {
       access: "private",
       contentType: IMAGE_CONTENT_TYPE,
     })
 
-    return Response.json({ pathname: blob.pathname })
+    const payload = imageUploadResponseSchema.parse({ pathname: blob.pathname })
+    return Response.json(payload)
   } catch (error) {
     console.error("receipt photo upload failed", error)
     return Response.json(

@@ -34,6 +34,7 @@ import {
 import type { Receipt } from "@/lib/dal/receipts"
 import { formatDate, formatMoney } from "@/lib/money"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
+import { setReceiptTypeInputSchema } from "@/lib/schemas"
 import { cn } from "@/lib/utils"
 
 const SELECT_ITEMS: Record<string, React.ReactNode> = Object.fromEntries(
@@ -68,8 +69,20 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
   function changeType(value: string) {
     if (value === receipt.receiptType) return
 
+    const input = setReceiptTypeInputSchema.safeParse({
+      id: receipt.id,
+      receiptType: value,
+    })
+    if (!input.success) {
+      toast.error(input.error.issues[0]?.message ?? "Unknown receipt type.")
+      return
+    }
+
     startTransition(async () => {
-      const result = await setReceiptTypeAction(receipt.id, value)
+      const result = await setReceiptTypeAction(
+        input.data.id,
+        input.data.receiptType
+      )
       if (result.status === "error") toast.error(result.message)
       else toast.success(`Moved to ${receiptTypeLabel(value)}.`)
     })

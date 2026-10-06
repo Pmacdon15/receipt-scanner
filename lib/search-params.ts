@@ -1,7 +1,10 @@
-import type { ReceiptSearchParams, SearchScope } from "@/lib/dal/receipts"
-import type { ReceiptSort } from "@/lib/db/receipts"
-import { parseMoneyToCents } from "@/lib/money"
-import { isReceiptTypeId, type ReceiptTypeId } from "@/lib/receipt-types"
+import type { ReceiptSearchParams } from "@/lib/dal/receipts"
+import type { ReceiptTypeId } from "@/lib/receipt-types"
+import {
+  searchParamsSchema,
+  type ReceiptSort,
+  type SearchScope,
+} from "@/lib/schemas"
 
 // The search page keeps all of its state in the URL, so a search can be
 // bookmarked, shared with a teammate, and stepped through with the back button.
@@ -15,52 +18,23 @@ export const SORT_OPTIONS: { id: ReceiptSort; label: string }[] = [
   { id: "lowest", label: "Lowest total" },
 ]
 
-const SORT_IDS = new Set<string>(SORT_OPTIONS.map((s) => s.id))
-const DATE = /^\d{4}-\d{2}-\d{2}$/
-
-function all(value: string | string[] | undefined): string[] {
-  if (value === undefined) return []
-  return Array.isArray(value) ? value : [value]
-}
-
-function first(value: string | string[] | undefined): string {
-  return all(value)[0]?.trim() ?? ""
-}
-
-function validDate(value: string): string | undefined {
-  if (!DATE.test(value)) return undefined
-  return Number.isNaN(new Date(`${value}T00:00:00Z`).getTime())
-    ? undefined
-    : value
-}
-
-function cents(value: string): number | undefined {
-  const parsed = parseMoneyToCents(value)
-  return parsed === null || parsed < 0 ? undefined : parsed
-}
-
+// Every value in the URL is untrusted. searchParamsSchema drops anything
+// invalid instead of erroring, so a stale or hand-edited link still works.
 export function parseSearchParams(raw: RawSearchParams): ReceiptSearchParams {
-  const receiptTypes = [
-    ...new Set(
-      all(raw.type)
-        .flatMap((t) => t.split(","))
-        .filter(isReceiptTypeId)
-    ),
-  ] as ReceiptTypeId[]
+  const parsed = searchParamsSchema.safeParse(raw)
+  if (!parsed.success) return { scope: "mine" }
 
-  const sort = first(raw.sort)
-  const page = Number(first(raw.page))
-
+  const p = parsed.data
   return {
-    scope: first(raw.scope) === "org" ? "org" : "mine",
-    query: first(raw.q).slice(0, 200) || undefined,
-    receiptTypes: receiptTypes.length > 0 ? receiptTypes : undefined,
-    purchasedFrom: validDate(first(raw.from)),
-    purchasedTo: validDate(first(raw.to)),
-    minTotalCents: cents(first(raw.min)),
-    maxTotalCents: cents(first(raw.max)),
-    sort: SORT_IDS.has(sort) ? (sort as ReceiptSort) : undefined,
-    page: Number.isFinite(page) && page > 1 ? page : undefined,
+    scope: p.scope,
+    query: p.q,
+    receiptTypes: p.type.length > 0 ? p.type : undefined,
+    purchasedFrom: p.from,
+    purchasedTo: p.to,
+    minTotalCents: p.min,
+    maxTotalCents: p.max,
+    sort: p.sort,
+    page: p.page,
   }
 }
 

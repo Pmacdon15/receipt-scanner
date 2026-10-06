@@ -30,9 +30,13 @@ import {
   compressImage,
   formatBytes,
   ImageCompressionError,
-  isSupportedImage,
 } from "@/lib/compress-image"
-import { MAX_IMAGE_BYTES } from "@/lib/receipt-image"
+import {
+  apiErrorResponseSchema,
+  clientImageFileSchema,
+  imageUploadResponseSchema,
+  MAX_IMAGE_BYTES,
+} from "@/lib/schemas"
 import { cn } from "@/lib/utils"
 
 export type CapturedImage = {
@@ -84,22 +88,19 @@ async function uploadImage(blob: Blob): Promise<string> {
   const payload: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && "error" in payload
-        ? String((payload as { error: unknown }).error)
-        : "That photo could not be uploaded. Try again."
+    const errorParsed = apiErrorResponseSchema.safeParse(payload)
+    const message = errorParsed.success
+      ? errorParsed.data.error
+      : "That photo could not be uploaded. Try again."
     throw new ImageUploadError(message)
   }
 
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    typeof (payload as { pathname?: unknown }).pathname !== "string"
-  ) {
+  const parsed = imageUploadResponseSchema.safeParse(payload)
+  if (!parsed.success) {
     throw new ImageUploadError("The upload did not come back as expected.")
   }
 
-  return (payload as { pathname: string }).pathname
+  return parsed.data.pathname
 }
 
 export function ScanCapture({
@@ -128,8 +129,12 @@ export function ScanCapture({
     const runId = ++runIdRef.current
     setError(null)
 
-    if (!isSupportedImage(file)) {
-      setError("Pick an image file — a photo, screenshot, or scan.")
+    const fileParsed = clientImageFileSchema.safeParse(file)
+    if (!fileParsed.success) {
+      setError(
+        fileParsed.error.issues[0]?.message ??
+          "Pick an image file — a photo, screenshot, or scan."
+      )
       return
     }
 
