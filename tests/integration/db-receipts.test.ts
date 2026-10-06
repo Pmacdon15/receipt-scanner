@@ -52,6 +52,7 @@ function receipt(
     typeSource: "auto",
     detectedType: null,
     detectedConfidence: null,
+    splits: null,
     rawText: null,
     imageUrl: null,
     notes: null,
@@ -513,5 +514,69 @@ describe("selectMerchantSuggestions", () => {
 
   test("treats LIKE wildcards literally", async () => {
     expect(await selectMerchantSuggestions(mine, "%")).toEqual([])
+  })
+})
+
+describe("split receipts", () => {
+  const mine = { kind: "user", userId: "user_a" } as const
+
+  const costcoRun = () =>
+    receipt({
+      merchant: "Costco",
+      totalCents: 4217,
+      receiptType: "grocery",
+      typeSource: "user",
+      splits: [
+        { type: "grocery", amountCents: 3000 },
+        { type: "hardware", amountCents: 1217 },
+      ],
+    })
+
+  test("stores and returns the split", async () => {
+    const row = await insertReceipt("user_a", costcoRun())
+    expect(row.splits).toEqual([
+      { type: "grocery", amountCents: 3000 },
+      { type: "hardware", amountCents: 1217 },
+    ])
+
+    const [listed] = await selectReceipts("user_a")
+    expect(listed.splits).toEqual(row.splits)
+  })
+
+  test("a receipt without a split reads back as null", async () => {
+    const row = await insertReceipt("user_a", receipt())
+    expect(row.splits).toBeNull()
+  })
+
+  test("the type filter matches any category in the split", async () => {
+    await insertReceipt("user_a", costcoRun())
+    await insertReceipt("user_a", receipt({ merchant: "Shell", receiptType: "fuel" }))
+
+    const hardware = await searchReceipts(mine, { receiptTypes: ["hardware"] })
+    expect(hardware.rows.map((r) => r.merchant)).toEqual(["Costco"])
+
+    const grocery = await searchReceipts(mine, { receiptTypes: ["grocery"] })
+    expect(grocery.rows.map((r) => r.merchant)).toEqual(["Costco"])
+  })
+
+  test("facets count each split category with its own share", async () => {
+    await insertReceipt("user_a", costcoRun())
+    await insertReceipt(
+      "user_a",
+      receipt({ receiptType: "grocery", totalCents: 500 })
+    )
+
+    const { typeFacets } = await searchReceipts(mine)
+    const byType = Object.fromEntries(
+      typeFacets.map((f) => [f.receipt_type, [f.receipt_count, f.total_cents]])
+    )
+    expect(byType).toEqual({ grocery: [2, 3500], hardware: [1, 1217] })
+  })
+
+  test("picking one type for the receipt clears the split", async () => {
+    const row = await insertReceipt("user_a", costcoRun())
+    const updated = await updateReceiptType("user_a", row.id, "office")
+    expect(updated?.receipt_type).toBe("office")
+    expect(updated?.splits).toBeNull()
   })
 })

@@ -43,3 +43,12 @@ create index if not exists receipts_org_purchased_idx
 create index if not exists receipts_org_type_idx
   on receipts (org_id, receipt_type)
   where org_id is not null;
+
+-- Split receipts. One receipt can cover more than one category (groceries
+-- and hardware on the same Costco run). When it does, `splits` holds how much
+-- went to each one, as [{"type": "grocery", "amountCents": 3000}, ...], and the
+-- amounts add up to total_cents (checked in lib/schemas.ts before insert).
+-- receipt_type stays filled with the largest split, so every query that only
+-- knows about one type per receipt keeps working. Null means "one category".
+-- Safe to re-run on an existing database.
+alter table receipts add column if not exists splits jsonb;

@@ -5,6 +5,7 @@ import {
   ImageIcon,
   Loader2Icon,
   SparklesIcon,
+  SplitIcon,
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
@@ -12,9 +13,16 @@ import { toast } from "sonner"
 
 import {
   deleteReceiptAction,
+  setReceiptSplitsAction,
   setReceiptTypeAction,
 } from "@/app/actions/receipts"
 import { ReceiptPhotoSheet } from "@/components/receipts/receipt-photo-sheet"
+import { SplitSummary } from "@/components/receipts/split-summary"
+import {
+  newSplitRow,
+  SplitEditor,
+  type SplitRow,
+} from "@/components/scanner/split-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,9 +33,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Receipt } from "@/lib/dal/receipts"
-import { formatDate, formatMoney } from "@/lib/money"
+import { formatDate, formatMoney, parseMoneyToCents } from "@/lib/money"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
-import { setReceiptTypeInputSchema } from "@/lib/schemas"
+import {
+  setReceiptSplitsInputSchema,
+  setReceiptTypeInputSchema,
+} from "@/lib/schemas"
 import { cn } from "@/lib/utils"
 
 const SELECT_ITEMS: Record<string, React.ReactNode> = Object.fromEntries(
@@ -58,6 +69,61 @@ export function ReceiptList({ receipts }: { receipts: Receipt[] }) {
 function ReceiptRow({ receipt }: { receipt: Receipt }) {
   const [isPending, startTransition] = React.useTransition()
   const [isPhotoOpen, setIsPhotoOpen] = React.useState(false)
+  // Editing the categories and amounts, including ones that were detected.
+  const [splitDraft, setSplitDraft] = React.useState<SplitRow[] | null>(null)
+
+  function editSplit() {
+    setSplitDraft(
+      receipt.splits
+        ? receipt.splits.map((s) =>
+            newSplitRow(s.type, (s.amountCents / 100).toFixed(2))
+          )
+        : [
+            newSplitRow(
+              receipt.receiptType,
+              (receipt.totalCents / 100).toFixed(2)
+            ),
+            newSplitRow(),
+          ]
+    )
+  }
+
+  function saveSplit() {
+    if (!splitDraft) return
+    const input = setReceiptSplitsInputSchema.safeParse({
+      id: receipt.id,
+      splits: splitDraft.map((row) => ({
+        type: row.type,
+        amountCents: parseMoneyToCents(row.amount) ?? Number.NaN,
+      })),
+    })
+    if (!input.success) {
+      toast.error(
+        input.error.issues[0]?.message ?? "Check the categories and amounts."
+      )
+      return
+    }
+    const sum = input.data.splits.reduce((t, s) => t + s.amountCents, 0)
+    if (sum !== receipt.totalCents) {
+      toast.error(
+        `The parts add up to ${formatMoney(sum, receipt.currency)}, not ${formatMoney(receipt.totalCents, receipt.currency)}.`
+      )
+      return
+    }
+
+    startTransition(async () => {
+      const result = await setReceiptSplitsAction(
+        input.data.id,
+        input.data.splits
+      )
+      if (result.status === "error") {
+        toast.error(result.message)
+      } else {
+        toast.success(result.message)
+        setSplitDraft(null)
+      }
+    })
+  }
 
   function changeType(value: string) {
     if (value === receipt.receiptType) return
@@ -127,9 +193,23 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
             {formatDate(receipt.purchasedOn)} ·{" "}
             {formatMoney(receipt.totalCents, receipt.currency)}
           </p>
+          {receipt.splits && (
+            <SplitSummary splits={receipt.splits} currency={receipt.currency} />
+          )}
         </div>
 
         <div className="relative z-10 flex items-center gap-2 sm:shrink-0">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Split or edit the categories of the receipt from ${receipt.merchant}`}
+            title="Split / edit categories and amounts"
+            disabled={isPending}
+            onClick={() => (splitDraft ? setSplitDraft(null) : editSplit())}
+          >
+            <SplitIcon />
+          </Button>
+
           <Select
             items={SELECT_ITEMS}
             value={receipt.receiptType}
@@ -163,6 +243,36 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
           </Button>
         </div>
       </div>
+
+      {splitDraft && (
+        <div className="relative z-10 mt-4 grid gap-2">
+          <SplitEditor
+            rows={splitDraft}
+            onChange={setSplitDraft}
+            totalCents={receipt.totalCents}
+            disabled={isPending}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={() => setSplitDraft(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isPending}
+              onClick={saveSplit}
+            >
+              Save split
+            </Button>
+          </div>
+        </div>
+      )}
 
       {receipt.hasImage && (
         <ReceiptPhotoSheet

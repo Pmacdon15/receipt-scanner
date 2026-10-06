@@ -15,6 +15,7 @@ export function makeReceipt(overrides: Partial<Receipt> = {}): Receipt {
     typeSource: "auto",
     detectedType: "grocery",
     detectedConfidence: 0.76,
+    splits: null,
     notes: null,
     hasImage: false,
     createdAt: "2025-03-01T12:00:00Z",

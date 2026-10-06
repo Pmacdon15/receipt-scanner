@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { parseMoneyToCents } from "@/lib/money"
+import { formatMoney, parseMoneyToCents } from "@/lib/money"
 import { RECEIPT_TYPES, type ReceiptTypeId } from "@/lib/receipt-types"
 
 // Shared Zod schemas. Everything here is safe to import from client
@@ -67,6 +67,58 @@ export const receiptSortSchema = z.enum([
 ])
 export type ReceiptSort = z.infer<typeof receiptSortSchema>
 
+// ---------------------------------------------------------------------------
+// Split receipts: one receipt spread across several categories, with how much
+// of the total went to each. Stored in receipts.splits (db/schema.sql).
+
+export const MAX_SPLITS = RECEIPT_TYPES.length
+
+export const receiptSplitSchema = z.object({
+  type: receiptTypeIdSchema,
+  amountCents: centsSchema,
+})
+
+export type ReceiptSplit = z.infer<typeof receiptSplitSchema>
+
+const SPLIT_TOO_FEW = "A split needs at least two categories."
+const SPLIT_TOO_MANY = `A split can cover at most ${MAX_SPLITS} categories.`
+const SPLIT_DUPLICATE = "Each category can only appear once in a split."
+
+function hasUniqueTypes(splits: readonly { type: string }[]) {
+  return new Set(splits.map((s) => s.type)).size === splits.length
+}
+
+export const receiptSplitsSchema = z
+  .array(receiptSplitSchema)
+  .min(2, SPLIT_TOO_FEW)
+  .max(MAX_SPLITS, SPLIT_TOO_MANY)
+  .refine(hasUniqueTypes, SPLIT_DUPLICATE)
+
+export function sumSplits(splits: readonly { amountCents: number }[]) {
+  return splits.reduce((sum, s) => sum + s.amountCents, 0)
+}
+
+/**
+ * The category a split receipt is filed under in receipt_type: the one with
+ * the most money on it (the first listed wins a tie).
+ */
+export function primarySplitType(
+  splits: readonly ReceiptSplit[]
+): ReceiptTypeId {
+  let best = splits[0]
+  for (const split of splits) {
+    if (split.amountCents > best.amountCents) best = split
+  }
+  return best.type
+}
+
+function splitMismatchMessage(splitCents: number, totalCents: number) {
+  const diff = totalCents - splitCents
+  return diff > 0
+    ? `The split is ${formatMoney(diff)} short of the ${formatMoney(totalCents)} total.`
+    : `The split is ${formatMoney(-diff)} over the ${formatMoney(totalCents)} total.`
+}
+
 export const searchScopeSchema = z.enum(["mine", "org"])
 export type SearchScope = z.infer<typeof searchScopeSchema>
 
@@ -97,6 +149,18 @@ function formCentsOrUndefined(value: unknown): number | string | undefined {
   return parseMoneyToCents(text) ?? text
 }
 
+// A JSON-encoded hidden input. Text that is not JSON is passed through so the
+// schema reports it rather than it being dropped.
+function formJson(value: unknown): unknown {
+  const text = formText(value)
+  if (text === "") return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
 const MERCHANT_REQUIRED = "Enter where the receipt is from."
 const MERCHANT_TOO_LONG = "Keep the merchant name under 200 characters."
 const RAW_TEXT_TOO_LONG = "Keep the receipt text under 20,000 characters."
@@ -104,6 +168,20 @@ const NOTES_TOO_LONG = "Keep notes under 2,000 characters."
 
 // ---------------------------------------------------------------------------
 // Scan form (components/scanner/scan-form.tsx → scanReceiptAction)
+
+const scanSplitRowSchema = z
+  .object({
+    type: receiptTypeId("Pick a category for each part of the split."),
+    amount: z.preprocess(
+      formCents,
+      z
+        .number({ error: "Enter an amount for each part of the split." })
+        .int()
+        .min(0, "Split amounts cannot be negative.")
+        .max(MAX_CENTS, "That split amount is too large.")
+    ),
+  })
+  .transform((row): ReceiptSplit => ({ type: row.type, amountCents: row.amount }))
 
 export const scanReceiptFormSchema = z.object({
   merchant: z.preprocess(
@@ -144,6 +222,40 @@ export const scanReceiptFormSchema = z.object({
     formTextOrNull,
     z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable()
   ),
+  // The per-category split, posted as JSON:
+  // [{ "type": "grocery", "amount": "30.00" }, ...]. Empty means the receipt
+  // is one category, picked by `receiptType` or detection.
+  splits: z.preprocess(
+    formJson,
+    z
+      .array(scanSplitRowSchema, { error: "The split could not be read." })
+      .min(2, SPLIT_TOO_FEW)
+      .max(MAX_SPLITS, SPLIT_TOO_MANY)
+      .refine(hasUniqueTypes, SPLIT_DUPLICATE)
+      .nullable()
+  ),
+  // What the photo reader (lib/extract-receipt.ts) guessed, echoed back so a
+  // receipt saved on "detect automatically" is filed under the photo's guess
+  // instead of the keyword one. Hints only: anything off is dropped.
+  detectedType: z.preprocess(
+    formTextOrUndefined,
+    receiptTypeIdSchema.optional().catch(undefined)
+  ),
+  detectedConfidence: z.preprocess(
+    (value) => {
+      const text = formText(value)
+      return text === "" ? undefined : Number(text)
+    },
+    z.number().min(0).max(1).optional().catch(undefined)
+  ),
+}).superRefine((value, ctx) => {
+  if (value.splits && sumSplits(value.splits) !== value.total) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["splits"],
+      message: splitMismatchMessage(sumSplits(value.splits), value.total),
+    })
+  }
 })
 
 export type ScanReceiptForm = z.infer<typeof scanReceiptFormSchema>
@@ -167,6 +279,25 @@ export const newReceiptSchema = z.object({
   rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullable(),
   imageUrl: z.string().max(500).nullish(),
   notes: z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable(),
+  // Set when the receipt covers more than one category; must add up to
+  // totalCents. Takes precedence over receiptType.
+  splits: receiptSplitsSchema.nullish(),
+  // A category guess made before saving (the photo reader). Used in place of
+  // the keyword classifier when present.
+  detected: z
+    .object({
+      type: receiptTypeIdSchema,
+      confidence: z.number().min(0).max(1),
+    })
+    .optional(),
+}).superRefine((value, ctx) => {
+  if (value.splits && sumSplits(value.splits) !== value.totalCents) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["splits"],
+      message: splitMismatchMessage(sumSplits(value.splits), value.totalCents),
+    })
+  }
 })
 
 export type NewReceipt = z.infer<typeof newReceiptSchema>
@@ -174,6 +305,11 @@ export type NewReceipt = z.infer<typeof newReceiptSchema>
 export const setReceiptTypeInputSchema = z.object({
   id: receiptIdSchema,
   receiptType: receiptTypeIdSchema,
+})
+
+export const setReceiptSplitsInputSchema = z.object({
+  id: receiptIdSchema,
+  splits: receiptSplitsSchema,
 })
 
 export const suggestReceiptTypeInputSchema = z.object({
@@ -247,6 +383,7 @@ export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>
 // ---------------------------------------------------------------------------
 // Extraction seam (lib/extract-receipt.ts)
 
+// Amounts are strings ("42.17") because they pre-fill text inputs.
 export const extractedFieldsSchema = z.object({
   merchant: z.string().max(MERCHANT_MAX, MERCHANT_TOO_LONG).optional(),
   purchasedOn: isoDateSchema.optional(),
@@ -254,6 +391,14 @@ export const extractedFieldsSchema = z.object({
   subtotal: z.string().optional(),
   tax: z.string().optional(),
   rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).optional(),
+  // The category the whole receipt reads as, with how sure the reader is.
+  receiptType: receiptTypeIdSchema.optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  // Present only when the line items span two or more categories. Amounts
+  // include each category's share of tax, so they add up to `total`.
+  splits: z
+    .array(z.object({ type: receiptTypeIdSchema, amount: z.string() }))
+    .optional(),
 })
 
 export type ExtractedFields = z.infer<typeof extractedFieldsSchema>

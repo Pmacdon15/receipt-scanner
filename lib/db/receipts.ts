@@ -1,6 +1,6 @@
 import { getSql } from "./client"
 import type { ReceiptTypeId } from "@/lib/receipt-types"
-import type { ReceiptSort } from "@/lib/schemas"
+import type { ReceiptSort, ReceiptSplit } from "@/lib/schemas"
 
 export type { ReceiptSort }
 
@@ -18,6 +18,8 @@ export type ReceiptRow = {
   type_source: "user" | "auto"
   detected_type: ReceiptTypeId | null
   detected_confidence: number | null
+  /** Per-category amounts when the receipt is split; null for one category. */
+  splits: ReceiptSplit[] | null
   raw_text: string | null
   /** Vercel Blob pathname of the scanned photo, or null when there is none. */
   image_url: string | null
@@ -53,6 +55,7 @@ export type InsertReceiptInput = {
   typeSource: "user" | "auto"
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
+  splits: ReceiptSplit[] | null
   rawText: string | null
   /** Blob pathname from the upload route, or null for a hand-entered receipt. */
   imageUrl?: string | null
@@ -71,7 +74,7 @@ export async function selectReceipts(
         select
           id, user_id, merchant, purchased_on, currency,
           subtotal_cents, tax_cents, total_cents,
-          receipt_type, type_source, detected_type, detected_confidence,
+          receipt_type, type_source, detected_type, detected_confidence, splits,
           raw_text, notes, created_at, updated_at,
           image_url is not null as has_image
         from receipts
@@ -83,7 +86,7 @@ export async function selectReceipts(
         select
           id, user_id, merchant, purchased_on, currency,
           subtotal_cents, tax_cents, total_cents,
-          receipt_type, type_source, detected_type, detected_confidence,
+          receipt_type, type_source, detected_type, detected_confidence, splits,
           raw_text, notes, created_at, updated_at,
           image_url is not null as has_image
         from receipts
@@ -138,18 +141,19 @@ export async function insertReceipt(
     insert into receipts (
       user_id, org_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
-      receipt_type, type_source, detected_type, detected_confidence,
+      receipt_type, type_source, detected_type, detected_confidence, splits,
       raw_text, image_url, notes
     ) values (
       ${userId}, ${input.orgId}, ${input.merchant}, ${input.purchasedOn}, ${input.currency},
       ${input.subtotalCents}, ${input.taxCents}, ${input.totalCents},
       ${input.receiptType}, ${input.typeSource}, ${input.detectedType}, ${input.detectedConfidence},
+      ${input.splits === null ? null : JSON.stringify(input.splits)}::jsonb,
       ${input.rawText}, ${input.imageUrl}, ${input.notes}
     )
     returning
       id, user_id, org_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
-      receipt_type, type_source, detected_type, detected_confidence,
+      receipt_type, type_source, detected_type, detected_confidence, splits,
       raw_text, notes, created_at, updated_at,
       image_url is not null as has_image
   `) as ReceiptListRow[]
@@ -167,12 +171,45 @@ export async function updateReceiptType(
     update receipts
     set receipt_type = ${receiptType},
         type_source = 'user',
+        -- Picking one type for the whole receipt replaces any split.
+        splits = null,
         updated_at = now()
     where user_id = ${userId} and id = ${id}
     returning
       id, user_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
-      receipt_type, type_source, detected_type, detected_confidence,
+      receipt_type, type_source, detected_type, detected_confidence, splits,
+      raw_text, notes, created_at, updated_at,
+      image_url is not null as has_image
+  `) as ReceiptListRow[]
+
+  return rows[0] ?? null
+}
+
+/**
+ * Replaces a receipt's split (and files it under `receiptType`, its largest
+ * part). Only updates when the parts add up to the stored total, so a split
+ * can never drift from the receipt it belongs to; null means it did not.
+ */
+export async function updateReceiptSplits(
+  userId: string,
+  id: string,
+  splits: ReceiptSplit[],
+  receiptType: ReceiptTypeId
+): Promise<ReceiptListRow | null> {
+  const sql = getSql()
+  const sum = splits.reduce((total, s) => total + s.amountCents, 0)
+  const rows = (await sql`
+    update receipts
+    set splits = ${JSON.stringify(splits)}::jsonb,
+        receipt_type = ${receiptType},
+        type_source = 'user',
+        updated_at = now()
+    where user_id = ${userId} and id = ${id} and total_cents = ${sum}
+    returning
+      id, user_id, org_id, merchant, purchased_on, currency,
+      subtotal_cents, tax_cents, total_cents,
+      receipt_type, type_source, detected_type, detected_confidence, splits,
       raw_text, notes, created_at, updated_at,
       image_url is not null as has_image
   `) as ReceiptListRow[]
@@ -308,7 +345,15 @@ function buildWhere(
   }
 
   if (includeTypes && filters.receiptTypes && filters.receiptTypes.length > 0) {
-    clauses.push(`receipt_type = any(${add(filters.receiptTypes)}::text[])`)
+    // A split receipt matches any of the categories it is split across, not
+    // just the one it is filed under.
+    const types = add(filters.receiptTypes)
+    clauses.push(
+      `(receipt_type = any(${types}::text[]) or exists (
+         select 1 from jsonb_array_elements(coalesce(splits, '[]'::jsonb)) s
+         where s->>'type' = any(${types}::text[])
+       ))`
+    )
   }
 
   if (filters.purchasedFrom) {
@@ -393,7 +438,7 @@ export async function searchReceipts(
       `select
          id, user_id, org_id, merchant, purchased_on, currency,
          subtotal_cents, tax_cents, total_cents,
-         receipt_type, type_source, detected_type, detected_confidence,
+         receipt_type, type_source, detected_type, detected_confidence, splits,
          raw_text, notes, created_at, updated_at,
          image_url is not null as has_image
        from receipts where ${filtered.where}
@@ -407,12 +452,23 @@ export async function searchReceipts(
        from receipts where ${filtered.where}`,
       filtered.params
     ),
+    // A split receipt counts once under each of its categories, with only that
+    // category's share of the money.
     sql.query(
-      `select receipt_type,
+      `select facet.facet_type as receipt_type,
               count(*)::int as receipt_count,
-              coalesce(sum(total_cents), 0)::bigint as total_cents
-       from receipts where ${faceted.where}
-       group by receipt_type`,
+              coalesce(sum(facet.facet_cents), 0)::bigint as total_cents
+       from receipts
+       cross join lateral (
+         select s->>'type' as facet_type, (s->>'amountCents')::bigint as facet_cents
+         from jsonb_array_elements(splits) s
+         where splits is not null
+         union all
+         select receipt_type, total_cents::bigint
+         where splits is null
+       ) facet
+       where ${faceted.where}
+       group by facet.facet_type`,
       faceted.params
     ),
   ])

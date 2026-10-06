@@ -7,6 +7,7 @@ import {
   InvalidInputError,
   removeReceipt,
   requireUserId,
+  setReceiptSplits,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
@@ -16,10 +17,12 @@ import {
   firstErrorMessage,
   receiptIdSchema,
   scanReceiptFormSchema,
+  setReceiptSplitsInputSchema,
   setReceiptTypeInputSchema,
   suggestReceiptTypeInputSchema,
   type ScanReceiptField,
 } from "@/lib/schemas"
+import { extractReceiptFieldsSafely } from "@/lib/extract-receipt"
 import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 
 export type ScanFormState = {
@@ -73,6 +76,11 @@ export async function scanReceiptAction(
       rawText: form.rawText,
       imageUrl: hasPathname ? rawPathname : null,
       notes: form.notes,
+      splits: form.splits,
+      detected:
+        form.detectedType !== undefined && form.detectedConfidence !== undefined
+          ? { type: form.detectedType, confidence: form.detectedConfidence }
+          : undefined,
     })
 
     revalidatePath("/scan")
@@ -84,6 +92,28 @@ export async function scanReceiptAction(
     }
   } catch (error) {
     return { status: "error", ...describeError(error) }
+  }
+}
+
+/**
+ * Reads the fields off a photo the user just uploaded, to pre-fill the scan
+ * form. Only the caller's own photos can be read, by the same pathname check
+ * the save uses.
+ */
+export async function extractReceiptAction(imagePathname: string) {
+  try {
+    const userId = await requireUserId()
+    if (!isOwnReceiptImagePathname(imagePathname, userId)) {
+      return {
+        status: "error" as const,
+        message: "That photo could not be read.",
+      }
+    }
+
+    const result = await extractReceiptFieldsSafely(imagePathname)
+    return { status: "success" as const, ...result }
+  } catch (error) {
+    return { status: "error" as const, message: describeError(error).message }
   }
 }
 
@@ -107,6 +137,32 @@ export async function setReceiptTypeAction(id: string, receiptType: string) {
 
     revalidatePath("/scan")
     return { status: "success" as const, message: "Type updated." }
+  } catch (error) {
+    return { status: "error" as const, ...describeError(error) }
+  }
+}
+
+export async function setReceiptSplitsAction(
+  id: string,
+  splits: { type: string; amountCents: number }[]
+) {
+  const parsed = setReceiptSplitsInputSchema.safeParse({ id, splits })
+  if (!parsed.success) {
+    return {
+      status: "error" as const,
+      message: firstErrorMessage(parsed.error, "That split is not valid."),
+    }
+  }
+
+  try {
+    const updated = await setReceiptSplits(parsed.data.id, parsed.data.splits)
+    if (!updated) {
+      return { status: "error" as const, message: "Receipt not found." }
+    }
+
+    revalidatePath("/scan")
+    revalidatePath("/search")
+    return { status: "success" as const, message: "Split updated." }
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
   }

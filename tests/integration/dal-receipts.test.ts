@@ -109,6 +109,61 @@ describe("createReceipt", () => {
     })
   })
 
+  test("a split is filed under its largest category", async () => {
+    signIn("user_a")
+    const receipt = await createReceipt(
+      newReceipt({
+        merchant: "Costco",
+        totalCents: 4217,
+        splits: [
+          { type: "hardware", amountCents: 1217 },
+          { type: "grocery", amountCents: 3000 },
+        ],
+      })
+    )
+
+    expect(receipt).toMatchObject({
+      receiptType: "grocery",
+      typeSource: "user",
+      splits: [
+        { type: "hardware", amountCents: 1217 },
+        { type: "grocery", amountCents: 3000 },
+      ],
+    })
+  })
+
+  test("refuses a split that does not add up to the total", async () => {
+    signIn("user_a")
+    await expect(
+      createReceipt(
+        newReceipt({
+          totalCents: 4217,
+          splits: [
+            { type: "hardware", amountCents: 1000 },
+            { type: "grocery", amountCents: 3000 },
+          ],
+        })
+      )
+    ).rejects.toBeInstanceOf(InvalidInputError)
+  })
+
+  test("a guess read from the photo beats keyword detection", async () => {
+    signIn("user_a")
+    const receipt = await createReceipt(
+      newReceipt({
+        merchant: "Petro-Canada",
+        detected: { type: "travel", confidence: 0.9 },
+      })
+    )
+
+    expect(receipt).toMatchObject({
+      receiptType: "travel",
+      typeSource: "auto",
+      detectedType: "travel",
+      detectedConfidence: 0.9,
+    })
+  })
+
   test("stores no detected type when detection finds nothing", async () => {
     signIn("user_a")
     const receipt = await createReceipt(newReceipt({ merchant: "Zzyzx Ltd" }))

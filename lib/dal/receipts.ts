@@ -11,12 +11,14 @@ import {
   searchReceipts as searchReceiptRows,
   selectReceiptTotals,
   selectVisibleReceiptImage,
+  updateReceiptSplits,
   updateReceiptType,
   type ReceiptListRow,
   type ReceiptScope,
   type ReceiptTotals,
   type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
+import { formatMoney } from "@/lib/money"
 import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 import {
   FALLBACK_RECEIPT_TYPE,
@@ -26,16 +28,20 @@ import {
 import {
   firstErrorMessage,
   newReceiptSchema,
+  primarySplitType,
   receiptIdSchema,
+  receiptSplitsSchema,
   receiptTypeIdSchema,
+  sumSplits,
   suggestReceiptTypeInputSchema,
   type NewReceipt,
   type ReceiptSort,
+  type ReceiptSplit,
   type SearchScope,
   type SuggestReceiptTypeInput,
 } from "@/lib/schemas"
 
-export type { NewReceipt, SearchScope }
+export type { NewReceipt, ReceiptSplit, SearchScope }
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -83,6 +89,11 @@ export type Receipt = {
   typeSource: "user" | "auto"
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
+  /**
+   * How the total is divided across categories, largest first as saved, or
+   * null when the whole receipt is one category (receiptType).
+   */
+  splits: ReceiptSplit[] | null
   notes: string | null
   /** True when a photo was scanned for this receipt. */
   hasImage: boolean
@@ -106,10 +117,19 @@ function toReceipt(row: ReceiptListRow): Receipt {
     typeSource: row.type_source,
     detectedType: isReceiptTypeId(row.detected_type) ? row.detected_type : null,
     detectedConfidence: row.detected_confidence,
+    splits: readSplits(row.splits),
     notes: row.notes,
     hasImage: row.has_image,
     createdAt: row.created_at,
   }
+}
+
+// A stored split that no longer parses (a category was renamed, say) is shown
+// as an unsplit receipt rather than breaking the page.
+function readSplits(value: unknown): ReceiptSplit[] | null {
+  if (value == null) return null
+  const parsed = receiptSplitsSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
 }
 
 export const getReceipts = cache(
@@ -178,14 +198,20 @@ export async function createReceipt(raw: NewReceipt): Promise<Receipt> {
     )
   }
 
-  const detected = classifyReceiptSafely({
-    merchant: input.merchant,
-    rawText: input.rawText,
-  })
+  // A guess made before saving (reading the photo) beats the keyword one.
+  const detected =
+    input.detected ??
+    classifyReceiptSafely({
+      merchant: input.merchant,
+      rawText: input.rawText,
+    })
 
-  // A type the user picked always wins; the detected guess is still stored so
-  // the UI can show what detection would have chosen.
-  const userPicked = input.receiptType !== undefined
+  // A split is filed under its largest category. Otherwise a type the user
+  // picked wins; either way the detected guess is still stored so the UI can
+  // show what detection would have chosen.
+  const splits = input.splits ?? null
+  const userPicked = splits !== null || input.receiptType !== undefined
+  const chosenType = splits ? primarySplitType(splits) : input.receiptType
 
   const row = await insertReceipt(userId, {
     orgId,
@@ -195,10 +221,11 @@ export async function createReceipt(raw: NewReceipt): Promise<Receipt> {
     subtotalCents: input.subtotalCents,
     taxCents: input.taxCents,
     totalCents: input.totalCents,
-    receiptType: userPicked ? input.receiptType! : detected.type,
+    receiptType: userPicked ? chosenType! : detected.type,
     typeSource: userPicked ? "user" : "auto",
     detectedType: detected.confidence > 0 ? detected.type : null,
     detectedConfidence: detected.confidence > 0 ? detected.confidence : null,
+    splits,
     rawText: input.rawText,
     imageUrl: input.imageUrl ?? null,
     notes: input.notes,
@@ -218,6 +245,41 @@ export async function setReceiptType(
   }
   const row = await updateReceiptType(userId, id, receiptType)
   return row ? toReceipt(row) : null
+}
+
+/**
+ * Changes how a saved receipt is divided across categories — correcting what
+ * the photo reader detected, or splitting a receipt saved as one category.
+ */
+export async function setReceiptSplits(
+  id: string,
+  splits: ReceiptSplit[]
+): Promise<Receipt | null> {
+  const userId = await requireUserId()
+  if (!receiptIdSchema.safeParse(id).success) return null
+
+  const parsed = receiptSplitsSchema.safeParse(splits)
+  if (!parsed.success) {
+    throw new InvalidInputError(
+      firstErrorMessage(parsed.error, "That split is not valid.")
+    )
+  }
+
+  const row = await updateReceiptSplits(
+    userId,
+    id,
+    parsed.data,
+    primarySplitType(parsed.data)
+  )
+  if (row) return toReceipt(row)
+
+  // Nothing updated: either the receipt is not theirs, or the parts do not
+  // add up to its total. Tell those apart only for the user's own receipt.
+  const existing = await selectReceiptById(userId, id)
+  if (!existing) return null
+  throw new InvalidInputError(
+    `The split adds up to ${formatMoney(sumSplits(parsed.data), existing.currency)} but the receipt total is ${formatMoney(existing.total_cents, existing.currency)}.`
+  )
 }
 
 export async function removeReceipt(id: string): Promise<boolean> {
