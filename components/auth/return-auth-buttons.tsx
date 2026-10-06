@@ -10,13 +10,21 @@ import { SignInButton, SignUpButton } from "@clerk/nextjs"
  * nothing to return to, so it's left undefined and Clerk uses the env
  * fallback (/scan).
  */
+function subscribe(onChange: () => void) {
+  window.addEventListener("popstate", onChange)
+  return () => window.removeEventListener("popstate", onChange)
+}
+
 function useReturnUrl() {
   const pathname = usePathname()
-  const [search, setSearch] = React.useState("")
-
-  React.useEffect(() => {
-    setSearch(window.location.search)
-  }, [pathname])
+  // Read the query straight off the URL (re-read on every render, so client
+  // navigations pick it up). useSearchParams would force a Suspense boundary
+  // around the header, which lives in the root layout.
+  const search = React.useSyncExternalStore(
+    subscribe,
+    () => window.location.search,
+    () => ""
+  )
 
   if (!pathname || pathname === "/") return undefined
   return `${pathname}${search}`
