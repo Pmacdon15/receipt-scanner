@@ -215,6 +215,21 @@ describe("reading and changing receipts", () => {
     expect(await getReceiptImage(mine.id)).toBe(pathname)
   })
 
+  test("getReceiptImage lets teammates in the active organization see the photo", async () => {
+    signIn("user_a", "org_1")
+    const pathname = newReceiptImagePathname("user_a")
+    const shared = await createReceipt(newReceipt({ imageUrl: pathname }))
+
+    signIn("user_b", "org_1")
+    expect(await getReceiptImage(shared.id)).toBe(pathname)
+
+    // Another organization, or none active, still reads as missing.
+    signIn("user_b", "org_2")
+    expect(await getReceiptImage(shared.id)).toBeNull()
+    signIn("user_b")
+    expect(await getReceiptImage(shared.id)).toBeNull()
+  })
+
   test("getReceiptImage returns null for invalid ids or receipts without image", async () => {
     signIn("user_a")
     const withoutPhoto = await createReceipt(newReceipt())
