@@ -16,10 +16,26 @@ export type ReceiptRow = {
   detected_type: ReceiptTypeId | null
   detected_confidence: number | null
   raw_text: string | null
+  /** Vercel Blob pathname of the scanned photo, or null when there is none. */
   image_url: string | null
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+/**
+ * A receipt without its image pathname.
+ *
+ * image_url used to hold the photo itself as a ~900KB data URL, so keeping it
+ * out of list queries was about not dragging tens of megabytes out of Postgres.
+ * It now holds a short Vercel Blob pathname, and the exclusion stays for a
+ * different reason: `has_image` is all the list UI needs, and these rows are
+ * handed to client components, so narrowing here keeps the storage key for
+ * someone's receipt photo out of the page payload. selectReceiptById is still
+ * the only read that returns it.
+ */
+export type ReceiptListRow = Omit<ReceiptRow, "image_url"> & {
+  has_image: boolean
 }
 
 export type InsertReceiptInput = {
@@ -35,33 +51,48 @@ export type InsertReceiptInput = {
   detectedType: ReceiptTypeId | null
   detectedConfidence: number | null
   rawText: string | null
+  /** Blob pathname from the upload route, or null for a hand-entered receipt. */
+  imageUrl: string | null
   notes: string | null
 }
 
 export async function selectReceipts(
   userId: string,
   options: { limit?: number; receiptType?: ReceiptTypeId } = {}
-): Promise<ReceiptRow[]> {
+): Promise<ReceiptListRow[]> {
   const sql = getSql()
   const limit = options.limit ?? 50
 
   const rows = options.receiptType
     ? await sql`
-        select * from receipts
+        select
+          id, user_id, merchant, purchased_on, currency,
+          subtotal_cents, tax_cents, total_cents,
+          receipt_type, type_source, detected_type, detected_confidence,
+          raw_text, notes, created_at, updated_at,
+          image_url is not null as has_image
+        from receipts
         where user_id = ${userId} and receipt_type = ${options.receiptType}
         order by purchased_on desc nulls last, created_at desc
         limit ${limit}
       `
     : await sql`
-        select * from receipts
+        select
+          id, user_id, merchant, purchased_on, currency,
+          subtotal_cents, tax_cents, total_cents,
+          receipt_type, type_source, detected_type, detected_confidence,
+          raw_text, notes, created_at, updated_at,
+          image_url is not null as has_image
+        from receipts
         where user_id = ${userId}
         order by purchased_on desc nulls last, created_at desc
         limit ${limit}
       `
 
-  return rows as ReceiptRow[]
+  return rows as ReceiptListRow[]
 }
 
+/** The one query that returns image_url, for showing a single receipt's photo. */
 export async function selectReceiptById(
   userId: string,
   id: string
@@ -77,22 +108,27 @@ export async function selectReceiptById(
 export async function insertReceipt(
   userId: string,
   input: InsertReceiptInput
-): Promise<ReceiptRow> {
+): Promise<ReceiptListRow> {
   const sql = getSql()
   const rows = (await sql`
     insert into receipts (
       user_id, org_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
       receipt_type, type_source, detected_type, detected_confidence,
-      raw_text, notes
+      raw_text, image_url, notes
     ) values (
       ${userId}, ${input.orgId}, ${input.merchant}, ${input.purchasedOn}, ${input.currency},
       ${input.subtotalCents}, ${input.taxCents}, ${input.totalCents},
       ${input.receiptType}, ${input.typeSource}, ${input.detectedType}, ${input.detectedConfidence},
-      ${input.rawText}, ${input.notes}
+      ${input.rawText}, ${input.imageUrl}, ${input.notes}
     )
-    returning *
-  `) as ReceiptRow[]
+    returning
+      id, user_id, merchant, purchased_on, currency,
+      subtotal_cents, tax_cents, total_cents,
+      receipt_type, type_source, detected_type, detected_confidence,
+      raw_text, notes, created_at, updated_at,
+      image_url is not null as has_image
+  `) as ReceiptListRow[]
 
   return rows[0]
 }
@@ -101,7 +137,7 @@ export async function updateReceiptType(
   userId: string,
   id: string,
   receiptType: ReceiptTypeId
-): Promise<ReceiptRow | null> {
+): Promise<ReceiptListRow | null> {
   const sql = getSql()
   const rows = (await sql`
     update receipts
@@ -109,8 +145,13 @@ export async function updateReceiptType(
         type_source = 'user',
         updated_at = now()
     where user_id = ${userId} and id = ${id}
-    returning *
-  `) as ReceiptRow[]
+    returning
+      id, user_id, merchant, purchased_on, currency,
+      subtotal_cents, tax_cents, total_cents,
+      receipt_type, type_source, detected_type, detected_confidence,
+      raw_text, notes, created_at, updated_at,
+      image_url is not null as has_image
+  `) as ReceiptListRow[]
 
   return rows[0] ?? null
 }
@@ -153,8 +194,7 @@ export async function selectReceiptTotals(
 // themselves (in any organization); "org" is everything saved into one
 // organization, by any member.
 export type ReceiptScope =
-  | { kind: "user"; userId: string }
-  | { kind: "org"; orgId: string }
+  { kind: "user"; userId: string } | { kind: "org"; orgId: string }
 
 export type ReceiptSearchFilters = {
   query?: string
@@ -184,7 +224,7 @@ export type ReceiptTypeFacet = {
 }
 
 export type ReceiptSearchResult = {
-  rows: ReceiptRow[]
+  rows: ReceiptListRow[]
   matchCount: number
   matchTotalCents: number
   // Counts per type for every filter except the type filter itself, so the
@@ -256,7 +296,13 @@ export async function searchReceipts(
   // is a bound parameter.
   const [rows, summary, typeFacets] = await Promise.all([
     sql.query(
-      `select * from receipts where ${filtered.where}
+      `select
+         id, user_id, org_id, merchant, purchased_on, currency,
+         subtotal_cents, tax_cents, total_cents,
+         receipt_type, type_source, detected_type, detected_confidence,
+         raw_text, notes, created_at, updated_at,
+         image_url is not null as has_image
+       from receipts where ${filtered.where}
        order by ${orderBy}
        limit ${limit} offset ${offset}`,
       filtered.params
@@ -282,7 +328,7 @@ export async function searchReceipts(
   )[0]
 
   return {
-    rows: rows as ReceiptRow[],
+    rows: rows as ReceiptListRow[],
     matchCount: totals?.match_count ?? 0,
     matchTotalCents: Number(totals?.match_total_cents ?? 0),
     typeFacets: (

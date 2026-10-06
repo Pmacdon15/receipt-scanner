@@ -5,17 +5,21 @@ import { revalidatePath } from "next/cache"
 import {
   createReceipt,
   removeReceipt,
+  requireUserId,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
 } from "@/lib/dal/receipts"
 import { parseMoneyToCents } from "@/lib/money"
+import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 import { isReceiptTypeId } from "@/lib/receipt-types"
 
 export type ScanFormState = {
   status: "idle" | "success" | "error"
   message: string
-  fieldErrors: Partial<Record<"merchant" | "total" | "receiptType", string>>
+  fieldErrors: Partial<
+    Record<"merchant" | "total" | "receiptType" | "image", string>
+  >
 }
 
 export async function scanReceiptAction(
@@ -59,6 +63,21 @@ export async function scanReceiptAction(
   const rawTextRaw = String(formData.get("rawText") ?? "").trim()
 
   try {
+    // The browser posts back the pathname the upload route minted for it, so it
+    // is user input and is checked against the caller's own blob folder here —
+    // otherwise one user could attach another user's photo to their receipt.
+    const rawPathname = formData.get("imagePathname")
+    const hasPathname = typeof rawPathname === "string" && rawPathname !== ""
+    const userId = await requireUserId()
+
+    if (hasPathname && !isOwnReceiptImagePathname(rawPathname, userId)) {
+      return {
+        status: "error",
+        message: "That photo could not be attached. Try scanning it again.",
+        fieldErrors: { image: "That photo is not available to attach." },
+      }
+    }
+
     const receipt = await createReceipt({
       merchant,
       purchasedOn: purchasedOnRaw === "" ? null : purchasedOnRaw,
@@ -69,6 +88,7 @@ export async function scanReceiptAction(
       receiptType:
         wantsExplicitType && isReceiptTypeId(rawType) ? rawType : undefined,
       rawText: rawTextRaw === "" ? null : rawTextRaw,
+      imageUrl: hasPathname ? rawPathname : null,
       notes: notesRaw === "" ? null : notesRaw,
     })
 

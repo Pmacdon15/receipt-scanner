@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Loader2Icon, SparklesIcon, WandSparklesIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  PencilLineIcon,
+  ScanLineIcon,
+  SparklesIcon,
+  WandSparklesIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -9,6 +15,10 @@ import {
   suggestReceiptTypeAction,
   type ScanFormState,
 } from "@/app/actions/receipts"
+import {
+  ScanCapture,
+  type CapturedImage,
+} from "@/components/scanner/scan-capture"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
 
@@ -48,6 +59,9 @@ const SELECT_ITEMS: Record<string, React.ReactNode> = {
 
 type Suggestion = { type: string; confidence: number } | null
 
+/** Whether the user is attaching a photo or typing the receipt in by hand. */
+type Mode = "scan" | "manual"
+
 export function ScanForm() {
   const formRef = React.useRef<HTMLFormElement>(null)
   const [state, setState] = React.useState<ScanFormState>(INITIAL_STATE)
@@ -58,6 +72,9 @@ export function ScanForm() {
   const [receiptType, setReceiptType] = React.useState<string>(AUTO)
   const [suggestion, setSuggestion] = React.useState<Suggestion>(null)
   const [isDetecting, startDetecting] = React.useTransition()
+
+  const [mode, setMode] = React.useState<Mode>("scan")
+  const [capture, setCapture] = React.useState<CapturedImage | null>(null)
 
   // Preview what detection would pick, so the user can see the auto choice
   // before anything is saved. The debounce callback owns every state update
@@ -94,6 +111,7 @@ export function ScanForm() {
         setRawText("")
         setReceiptType(AUTO)
         setSuggestion(null)
+        setCapture(null)
       } else {
         toast.error(result.message)
       }
@@ -107,13 +125,61 @@ export function ScanForm() {
       <CardHeader>
         <CardTitle>Scan a receipt</CardTitle>
         <CardDescription>
-          Enter what the receipt says. The category is detected as you type —
-          override it any time.
+          Scan a photo or type the receipt in. The category is detected as you
+          go — override it any time.
         </CardDescription>
       </CardHeader>
 
       <form ref={formRef} action={handleSubmit}>
         <CardContent className="grid gap-5">
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              const next = (value ?? "scan") as Mode
+              setMode(next)
+              // Leaving scan mode drops the photo, so switching away cannot
+              // post an image the user thinks they abandoned.
+              if (next === "manual") setCapture(null)
+            }}
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="scan" className="flex-1">
+                <ScanLineIcon />
+                Scan a photo
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="flex-1">
+                <PencilLineIcon />
+                Enter by hand
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="scan" className="mt-4 grid gap-2">
+              <ScanCapture
+                value={capture}
+                onChange={setCapture}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                The photo is attached to the receipt. Reading the fields off it
+                automatically is not wired up yet, so confirm the details below.
+              </p>
+              {state.fieldErrors.image && (
+                <p className="text-xs text-destructive">
+                  {state.fieldErrors.image}
+                </p>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {/* Posts the uploaded photo's blob pathname, not the photo itself —
+              the bytes went straight to the store from ScanCapture. Empty in
+              manual mode, which the action reads as "no image". */}
+          <input
+            type="hidden"
+            name="imagePathname"
+            value={mode === "scan" ? (capture?.pathname ?? "") : ""}
+          />
+
           <div className="grid gap-2">
             <Label htmlFor="merchant">Merchant</Label>
             <Input

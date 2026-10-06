@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.8.0",
     "@clerk/nextjs": "^7.9.10",
     "@neondatabase/serverless": "^1.2.0",
+    "@vercel/blob": "^2.8.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.52.0",

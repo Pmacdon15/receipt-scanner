@@ -127,3 +127,28 @@
     @apply font-sans;
   }
 }
+
+/* Scan capture: the shimmer that sweeps the progress bar while a receipt photo
+   is being compressed. Adapted from the AI Canvas "Upload Progress" component,
+   which drives the same effect through framer-motion. */
+@theme inline {
+  --animate-scan-sweep: scan-sweep 1.6s linear infinite;
+}
+
+@keyframes scan-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan-sweep {
+    animation: none;
+    transform: translateX(0);
+    width: 100%;
+    opacity: 0.5;
+  }
+}
