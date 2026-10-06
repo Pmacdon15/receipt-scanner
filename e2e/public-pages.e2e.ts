@@ -92,7 +92,7 @@ test.describe("documents page", () => {
   })
 
   test("the downloads refuse a signed-out request", async ({ request }) => {
-    for (const kind of ["pdf", "xlsx", "zip"]) {
+    for (const kind of ["pdf", "xlsx", "photos"]) {
       const response = await request.get(`/api/documents/${kind}`)
       expect(response.status()).toBe(401)
     }

@@ -502,13 +502,8 @@ export async function searchReceipts(
  */
 export const EXPORT_LIMIT = 5_000
 
-export type ReceiptExportRow = ReceiptListRow & {
-  /** Only filled when the caller asked for image pathnames (the ZIP export). */
-  image_url?: string | null
-}
-
 export type ReceiptExportResult = {
-  rows: ReceiptExportRow[]
+  rows: ReceiptListRow[]
   /** True when more receipts matched than EXPORT_LIMIT; rows holds the first ones. */
   truncated: boolean
 }
@@ -517,14 +512,13 @@ export type ReceiptExportResult = {
  * Every receipt matching the same filters search uses, oldest first, for the
  * documents page and its downloads.
  *
- * raw_text is left out (it can be 20KB a receipt and no export shows it).
- * image_url is returned only when `withImages` is set, which only the ZIP
- * route does: it never reaches a client component.
+ * raw_text is left out (it can be 20KB a receipt and no export shows it), and
+ * so is image_url, as in every list query: the photo ZIP fetches each photo
+ * through the per-receipt image route instead.
  */
 export async function selectReceiptsForExport(
   scope: ReceiptScope,
-  filters: ReceiptSearchFilters = {},
-  { withImages = false }: { withImages?: boolean } = {}
+  filters: ReceiptSearchFilters = {}
 ): Promise<ReceiptExportResult> {
   const sql = getSql()
   const { where, params } = buildWhere(scope, filters, { includeTypes: true })
@@ -538,12 +532,11 @@ export async function selectReceiptsForExport(
        receipt_type, type_source, detected_type, detected_confidence, splits,
        null::text as raw_text, notes, created_at, updated_at,
        image_url is not null as has_image
-       ${withImages ? ", image_url" : ""}
      from receipts where ${where}
      order by purchased_on asc nulls last, created_at asc
      limit ${EXPORT_LIMIT + 1}`,
     params
-  )) as ReceiptExportRow[]
+  )) as ReceiptListRow[]
 
   return {
     rows: rows.slice(0, EXPORT_LIMIT),

@@ -1,11 +1,18 @@
 import { describePeriod, exportBaseName, monthLabel } from "@/lib/documents/report"
 import type { ReportReceipt } from "@/lib/documents/report"
-import { zipStream, type ZipEntry, type ZipWriter } from "@/lib/documents/zip"
+import { ZipWriter } from "@/lib/documents/zip"
 import { receiptTypeLabel } from "@/lib/receipt-types"
 
 // The "download all my receipts" ZIP: every photo, filed into folders, with
 // the PDF report and the spreadsheet alongside so the archive stands on its
 // own (for an accountant, or a tax-time backup).
+//
+// The archive is assembled in the browser. The server only says which photos
+// go where (buildArchiveManifest, served by /api/documents/photos); the
+// browser then fetches each photo through /api/receipts/[id]/image, one small
+// authorized request at a time, and zips them locally. Sending the whole
+// archive through one serverless function hit its size and time limits, and
+// any error it returned was saved by the browser as "zip.txt" (issue #14).
 //
 //   receipts-2026-01-01-to-2026-03-31/
 //     Receipt report.pdf
@@ -24,11 +31,10 @@ export function parseOrganize(value: string | null | undefined): ArchiveOrganize
 }
 
 /**
- * Photos one archive may hold. Each is fetched from blob storage while the
- * download streams, so this keeps a request inside the function time limit;
- * past it the user is asked to narrow the dates.
+ * Photos one archive may hold. The browser keeps the archive in memory until
+ * it is saved, so past this the user is asked to narrow the dates.
  */
-export const ARCHIVE_PHOTO_LIMIT = 1_000
+export const ARCHIVE_PHOTO_LIMIT = 500
 
 // Characters Windows, macOS or common unzip tools reject in a file name.
 const UNSAFE_NAME = /[\\/:*?"<>|\u0000-\u001f\u007f]+/g
@@ -94,90 +100,171 @@ export function archivePhotoPaths(
   return paths
 }
 
-export type ArchiveInput = {
-  receipts: readonly ReportReceipt[]
+/** One photo in the archive: whose it is, and where it goes. */
+export type ArchivePhoto = {
+  receiptId: string
+  /** Path inside the archive's root folder, from archivePhotoPaths. */
+  path: string
+  purchasedOn: string | null
+  merchant: string
+  totalCents: number
+  currency: string
+}
+
+/**
+ * Everything the browser needs to assemble the archive. Holds receipt ids and
+ * archive paths only: never blob pathnames, which stay on the server.
+ */
+export type ArchiveManifest = {
+  /** The folder everything sits in, e.g. "receipts-2026-01-01-to-2026-03-31". */
+  rootName: string
+  /** The name to save the download as. */
+  fileName: string
   organize: ArchiveOrganize
+  scopeLabel: string
   from?: string
   to?: string
-  scopeLabel: string
-  generatedAt: Date
-  /** Where each receipt's photo goes; from archivePhotoPaths. */
-  photoPaths: ReadonlyMap<string, string>
-  /** The report and spreadsheet, built with the same photoPaths. */
+  /** ISO timestamp. */
+  generatedAt: string
+  receiptCount: number
+  photos: ArchivePhoto[]
+}
+
+export function buildArchiveManifest(
+  receipts: readonly ReportReceipt[],
+  {
+    organize,
+    scopeLabel,
+    from,
+    to,
+    generatedAt,
+    fileName,
+  }: {
+    organize: ArchiveOrganize
+    scopeLabel: string
+    from?: string
+    to?: string
+    generatedAt: Date
+    fileName: string
+  }
+): ArchiveManifest {
+  const paths = archivePhotoPaths(receipts, organize)
+  return {
+    rootName: exportBaseName(from, to),
+    fileName,
+    organize,
+    scopeLabel,
+    from,
+    to,
+    generatedAt: generatedAt.toISOString(),
+    receiptCount: receipts.length,
+    photos: receipts.flatMap((r) => {
+      const path = paths.get(r.id)
+      return path
+        ? [
+            {
+              receiptId: r.id,
+              path,
+              purchasedOn: r.purchasedOn,
+              merchant: r.merchant,
+              totalCents: r.totalCents,
+              currency: r.currency,
+            },
+          ]
+        : []
+    }),
+  }
+}
+
+export type ArchiveProgress = { done: number; total: number }
+
+export type BuildArchiveInput = {
+  manifest: ArchiveManifest
+  /** The report and spreadsheet for the same filters. */
   documents: { pdf: Uint8Array; xlsx: Uint8Array }
-  /** Reads one receipt's photo, or null when it cannot be read. */
+  /**
+   * Reads one receipt's photo, or null when it cannot be read (it is then
+   * listed in the README). Throw to abandon the whole archive.
+   */
   readPhoto: (receiptId: string) => Promise<Uint8Array | null>
-  /** Photos read ahead of the one being written. */
+  /** Photos fetched at the same time. */
   concurrency?: number
+  onProgress?: (progress: ArchiveProgress) => void
+  signal?: AbortSignal
 }
 
-/** The archive as a stream. Its root folder is exportBaseName(from, to). */
-export function receiptArchiveStream(input: ArchiveInput) {
-  return zipStream((writer) => archiveEntries(input, writer))
+export type BuiltArchive = {
+  /** The archive's bytes, in order; hand them to `new Blob(parts)`. */
+  parts: Uint8Array[]
+  included: number
+  missing: ArchivePhoto[]
+  skipped: ArchivePhoto[]
 }
 
-async function* archiveEntries(
-  input: ArchiveInput,
-  writer: ZipWriter
-): AsyncGenerator<ZipEntry> {
-  const root = `${exportBaseName(input.from, input.to)}/`
-  const modified = input.generatedAt
-
-  yield {
-    name: `${root}Receipt report.pdf`,
-    data: input.documents.pdf,
-    modified,
-    compress: true,
-  }
-  yield {
-    name: `${root}Receipts.xlsx`,
-    data: input.documents.xlsx,
-    modified,
+/** The whole archive, photos fetched a few at a time and written in order. */
+export async function buildReceiptArchive({
+  manifest,
+  documents,
+  readPhoto,
+  concurrency = 4,
+  onProgress,
+  signal,
+}: BuildArchiveInput): Promise<BuiltArchive> {
+  const writer = new ZipWriter()
+  const parts: Uint8Array[] = []
+  const root = `${manifest.rootName}/`
+  const generatedAt = new Date(manifest.generatedAt)
+  const add = (name: string, data: Uint8Array, modified = generatedAt) => {
+    parts.push(...writer.add({ name: `${root}${name}`, data, modified }))
   }
 
-  const queue = input.receipts.filter((r) => input.photoPaths.has(r.id))
-  const missing: ReportReceipt[] = []
-  const skipped: ReportReceipt[] = []
+  add("Receipt report.pdf", documents.pdf)
+  add("Receipts.xlsx", documents.xlsx)
 
-  // Read a few photos ahead, but write them in order.
-  const ahead = Math.max(1, input.concurrency ?? 4)
-  const pending: Promise<Uint8Array | null>[] = []
-  const read = (receipt: ReportReceipt) =>
-    input.readPhoto(receipt.id).catch(() => null)
+  const queue = manifest.photos
+  const missing: ArchivePhoto[] = []
+  const skipped: ArchivePhoto[] = []
+  let included = 0
 
-  for (let i = 0; i < Math.min(ahead, queue.length); i++) {
-    pending.push(read(queue[i]))
+  const ahead = Math.max(1, concurrency)
+  const pending: (Promise<Uint8Array | null> | null)[] = []
+  const start = (i: number) => {
+    // A failed read becomes a rejected promise held until its turn; mark it
+    // handled now so it is not reported as unhandled in the meantime.
+    const read = readPhoto(queue[i].receiptId)
+    read.catch(() => {})
+    pending[i] = read
   }
+  for (let i = 0; i < Math.min(ahead, queue.length); i++) start(i)
 
+  onProgress?.({ done: 0, total: queue.length })
   for (let i = 0; i < queue.length; i++) {
-    const receipt = queue[i]
+    signal?.throwIfAborted()
+    const photo = queue[i]
     const data = await pending[i]
-    if (i + ahead < queue.length) pending.push(read(queue[i + ahead]))
-    // Let the finished read be collected rather than held by the array.
-    pending[i] = Promise.resolve(null)
+    pending[i] = null
+    if (i + ahead < queue.length) start(i + ahead)
 
     if (!data) {
-      missing.push(receipt)
-      continue
-    }
-    if (!writer.fits(data.length)) {
-      skipped.push(receipt, ...queue.slice(i + 1))
+      missing.push(photo)
+    } else if (!writer.fits(data.length)) {
+      skipped.push(...queue.slice(i))
       break
+    } else {
+      add(photo.path, data, photoDate(photo.purchasedOn) ?? generatedAt)
+      included++
     }
-
-    yield {
-      name: `${root}${input.photoPaths.get(receipt.id)}`,
-      data,
-      modified: photoDate(receipt.purchasedOn) ?? modified,
-    }
+    onProgress?.({ done: i + 1, total: queue.length })
   }
+  signal?.throwIfAborted()
 
-  yield {
-    name: `${root}README.txt`,
-    data: new TextEncoder().encode(readme(input, missing, skipped)),
-    modified,
-    compress: true,
-  }
+  add(
+    "README.txt",
+    new TextEncoder().encode(archiveReadme(manifest, missing, skipped))
+  )
+  parts.push(writer.finish())
+
+  return { parts, included, missing, skipped }
 }
 
 /** Noon UTC on the purchase date, so the unzipped file sorts by it. */
@@ -187,18 +274,18 @@ function photoDate(purchasedOn: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function readme(
-  input: ArchiveInput,
-  missing: readonly ReportReceipt[],
-  skipped: readonly ReportReceipt[]
+export function archiveReadme(
+  manifest: ArchiveManifest,
+  missing: readonly ArchivePhoto[] = [],
+  skipped: readonly ArchivePhoto[] = []
 ) {
-  const withPhoto = input.photoPaths.size
+  const withPhoto = manifest.photos.length
   const included = withPhoto - missing.length - skipped.length
-  const withoutPhoto = input.receipts.length - withPhoto
+  const withoutPhoto = manifest.receiptCount - withPhoto
   const organized =
-    input.organize === "month"
+    manifest.organize === "month"
       ? "Photos are filed in a folder per month."
-      : input.organize === "category"
+      : manifest.organize === "category"
         ? "Photos are filed in a folder per category (a split receipt goes under its largest category)."
         : "Photos are all in one folder."
 
@@ -206,11 +293,11 @@ function readme(
     "Receipt export",
     "==============",
     "",
-    `Covering: ${input.scopeLabel}`,
-    `Period:   ${describePeriod(input.from, input.to)}`,
-    `Created:  ${input.generatedAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
+    `Covering: ${manifest.scopeLabel}`,
+    `Period:   ${describePeriod(manifest.from, manifest.to)}`,
+    `Created:  ${manifest.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
     "",
-    `${input.receipts.length} receipt${input.receipts.length === 1 ? "" : "s"}, ${included} photo${included === 1 ? "" : "s"} included.`,
+    `${manifest.receiptCount} receipt${manifest.receiptCount === 1 ? "" : "s"}, ${included} photo${included === 1 ? "" : "s"} included.`,
     organized,
     "",
     "Receipt report.pdf  totals by category and month, and every receipt.",
@@ -224,12 +311,12 @@ function readme(
       `${withoutPhoto} receipt${withoutPhoto === 1 ? " was" : "s were"} entered by hand with no photo; they are in the report and spreadsheet only.`
     )
   }
-  const listed = (title: string, list: readonly ReportReceipt[]) => {
+  const listed = (title: string, list: readonly ArchivePhoto[]) => {
     if (list.length === 0) return
     lines.push("", title)
-    for (const r of list) {
+    for (const p of list) {
       lines.push(
-        `  - ${r.purchasedOn ?? "No date"}  ${r.merchant}  ${(r.totalCents / 100).toFixed(2)} ${r.currency}`
+        `  - ${p.purchasedOn ?? "No date"}  ${p.merchant}  ${(p.totalCents / 100).toFixed(2)} ${p.currency}`
       )
     }
   }

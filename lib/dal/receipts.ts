@@ -438,77 +438,45 @@ export type ReceiptExport = {
   truncated: boolean
 }
 
-async function loadExport(
-  params: ReceiptSearchParams,
-  withImages: boolean
-): Promise<{ data: ReceiptExport; imagePathnames: Map<string, string> }> {
-  const { userId, orgId, scope, where } = await resolveSearchScope(params.scope)
+/**
+ * Every receipt the documents page and its downloads cover: the same filters
+ * and the same scope rules as search, without paging.
+ */
+export const getReceiptExport = cache(
+  async (params: ReceiptSearchParams): Promise<ReceiptExport> => {
+    const { userId, orgId, scope, where } = await resolveSearchScope(
+      params.scope
+    )
 
-  const result = await selectReceiptsForExport(
-    where,
-    {
+    const result = await selectReceiptsForExport(where, {
       query: params.query,
       receiptTypes: params.receiptTypes,
       purchasedFrom: params.purchasedFrom,
       purchasedTo: params.purchasedTo,
       minTotalCents: params.minTotalCents,
       maxTotalCents: params.maxTotalCents,
-    },
-    { withImages }
-  )
+    })
 
-  const receipts = result.rows.map(toReceipt)
-  const names =
-    scope === "org"
-      ? await getUserNames(receipts.map((r) => r.userId))
-      : new Map<string, string>()
+    const receipts = result.rows.map(toReceipt)
+    const names =
+      scope === "org"
+        ? await getUserNames(receipts.map((r) => r.userId))
+        : new Map<string, string>()
 
-  const imagePathnames = new Map<string, string>()
-  if (withImages) {
-    for (const row of result.rows) {
-      if (row.image_url) imagePathnames.set(row.id, row.image_url)
+    return {
+      scope,
+      org: orgId ? { id: orgId, name: await getOrgName(orgId) } : null,
+      params: { ...params, scope, sort: undefined, page: undefined },
+      receipts: receipts.map((r) => ({
+        ...r,
+        isMine: r.userId === userId,
+        uploadedBy:
+          r.userId === userId ? "You" : (names.get(r.userId) ?? "A teammate"),
+      })),
+      truncated: result.truncated,
     }
   }
-
-  const data: ReceiptExport = {
-    scope,
-    org: orgId ? { id: orgId, name: await getOrgName(orgId) } : null,
-    params: { ...params, scope, sort: undefined, page: undefined },
-    receipts: receipts.map((r) => ({
-      ...r,
-      isMine: r.userId === userId,
-      uploadedBy:
-        r.userId === userId ? "You" : (names.get(r.userId) ?? "A teammate"),
-    })),
-    truncated: result.truncated,
-  }
-
-  return { data, imagePathnames }
-}
-
-/**
- * Every receipt the documents page and its PDF and spreadsheet cover: the
- * same filters and the same scope rules as search, without paging.
- */
-export const getReceiptExport = cache(
-  async (params: ReceiptSearchParams): Promise<ReceiptExport> => {
-    const { data } = await loadExport(params, false)
-    return data
-  }
 )
-
-/**
- * The export plus each receipt's photo pathname, for the ZIP download only.
- *
- * Server-only by intent: the pathnames are storage keys, so this must never
- * be handed to a client component. They come from rows the scope already
- * allows the user to see, the same rule getReceiptImage applies to one photo.
- */
-export async function getReceiptExportWithPhotos(
-  params: ReceiptSearchParams
-): Promise<{ data: ReceiptExport; imagePathnames: Map<string, string> }> {
-  return loadExport(params, true)
-}
 
 function clampInt(
   value: number | undefined,

@@ -4,7 +4,6 @@ import {
   beforeEach,
   describe,
   expect,
-  mock,
   test,
 } from "bun:test"
 import type { NextRequest } from "next/server"
@@ -17,22 +16,11 @@ import { getReceiptExport } from "@/lib/dal/receipts"
 import { insertReceipt, type InsertReceiptInput } from "@/lib/db/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
 
-// Photos come out of the private blob store; record which ones are read.
-const blobReads: string[] = []
-mock.module("@vercel/blob", () => ({
-  get: async (pathname: string) => {
-    blobReads.push(pathname)
-    return {
-      statusCode: 200,
-      stream: new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])).body,
-      blob: { contentType: "image/jpeg", size: 4 },
-    }
-  },
-}))
+import type { ArchiveManifest } from "@/lib/documents/receipt-archive"
 
 const { GET: getPdf } = await import("@/app/api/documents/pdf/route")
 const { GET: getXlsx } = await import("@/app/api/documents/xlsx/route")
-const { GET: getZip } = await import("@/app/api/documents/zip/route")
+const { GET: getPhotos } = await import("@/app/api/documents/photos/route")
 
 let testDb: TestDb
 
@@ -49,7 +37,6 @@ afterAll(async () => {
 beforeEach(async () => {
   resetFakes()
   await testDb.reset()
-  blobReads.length = 0
 })
 
 function receipt(
@@ -121,7 +108,7 @@ describe("getReceiptExport", () => {
 describe("download routes", () => {
   test("refuse a signed-out caller", async () => {
     signIn(null)
-    for (const get of [getPdf, getXlsx, getZip]) {
+    for (const get of [getPdf, getXlsx, getPhotos]) {
       const response = await get(request("/api/documents/x"))
       expect(response.status).toBe(401)
     }
@@ -160,35 +147,37 @@ describe("download routes", () => {
     expect(sheet).not.toContain("Secret Shop")
   })
 
-  test("the ZIP files each photo by month and reads only the caller's photos", async () => {
+  test("the photo list covers only the caller's photos, by month, without storage keys", async () => {
     const mine = newReceiptImagePathname("user_a")
-    const theirs = newReceiptImagePathname("user_b")
     await insertReceipt(
       "user_a",
       receipt({ merchant: "Costco", purchasedOn: "2026-01-15", totalCents: 4217, imageUrl: mine })
     )
     await insertReceipt("user_a", receipt({ merchant: "Typed in" }))
-    await insertReceipt("user_b", receipt({ merchant: "Theirs", imageUrl: theirs }))
+    await insertReceipt(
+      "user_b",
+      receipt({ merchant: "Theirs", imageUrl: newReceiptImagePathname("user_b") })
+    )
     signIn("user_a")
 
-    const response = await getZip(
-      request("/api/documents/zip?from=2026-01-01&to=2026-01-31")
+    const response = await getPhotos(
+      request("/api/documents/photos?from=2026-01-01&to=2026-01-31")
     )
     expect(response.status).toBe(200)
-    expect(response.headers.get("Content-Type")).toBe("application/zip")
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store")
 
-    const files = readZip(new Uint8Array(await response.arrayBuffer()))
-    const root = "receipts-2026-01-01-to-2026-01-31/"
-    expect([...files.keys()]).toEqual([
-      `${root}Receipt report.pdf`,
-      `${root}Receipts.xlsx`,
-      `${root}2026-01 January/2026-01-15 Costco 42.17.jpg`,
-      `${root}README.txt`,
+    const raw = await response.text()
+    expect(raw).not.toContain(mine)
+    const manifest = JSON.parse(raw) as ArchiveManifest
+    expect(manifest.fileName).toBe("receipts-2026-01-01-to-2026-01-31.zip")
+    expect(manifest.rootName).toBe("receipts-2026-01-01-to-2026-01-31")
+    expect(manifest.receiptCount).toBe(2)
+    expect(manifest.photos.map((p) => [p.merchant, p.path])).toEqual([
+      ["Costco", "2026-01 January/2026-01-15 Costco 42.17.jpg"],
     ])
-    expect(blobReads).toEqual([mine])
   })
 
-  test("the ZIP can be filed by category", async () => {
+  test("the photo list can be filed by category", async () => {
     await insertReceipt(
       "user_a",
       receipt({
@@ -199,10 +188,34 @@ describe("download routes", () => {
     )
     signIn("user_a")
 
-    const response = await getZip(request("/api/documents/zip?organize=category"))
-    const names = [...readZip(new Uint8Array(await response.arrayBuffer())).keys()]
-    expect(names).toContain(
-      "receipts-all-dates/Fuel & Transport/2026-01-15 Shell 10.00.jpg"
+    const response = await getPhotos(
+      request("/api/documents/photos?organize=category")
     )
+    const manifest = (await response.json()) as ArchiveManifest
+    expect(manifest.photos[0].path).toBe(
+      "Fuel & Transport/2026-01-15 Shell 10.00.jpg"
+    )
+  })
+
+  test("errors come back as JSON the page can show", async () => {
+    signIn(null)
+    const response = await getPhotos(request("/api/documents/photos"))
+    expect(response.status).toBe(401)
+    expect(response.headers.get("Content-Type")).toContain("application/json")
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toContain("Sign in")
+  })
+
+  test("the spreadsheet names each photo's file when asked", async () => {
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Costco", imageUrl: newReceiptImagePathname("user_a") })
+    )
+    signIn("user_a")
+
+    const response = await getXlsx(request("/api/documents/xlsx?photos=month"))
+    const files = readZip(new Uint8Array(await response.arrayBuffer()))
+    const sheet = new TextDecoder().decode(files.get("xl/worksheets/sheet2.xml"))
+    expect(sheet).toContain("2026-01 January/2026-01-15 Costco 10.00.jpg")
   })
 })
