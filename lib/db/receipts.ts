@@ -258,6 +258,28 @@ function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
+function scopeClause(scope: ReceiptScope, add: (value: unknown) => string) {
+  return scope.kind === "user"
+    ? `user_id = ${add(scope.userId)}`
+    : `org_id = ${add(scope.orgId)}`
+}
+
+// A term that reads as an amount ("12.50", "$7") also matches receipt totals,
+// so a search for the total on a receipt finds it.
+const AMOUNT_TERM = /^\$?\d{1,7}(?:\.\d{1,2})?$/
+const MAX_TERMS = 8
+
+// Splits the query into words. Every word has to match somewhere (merchant,
+// notes or receipt text), in any order: "costco gas" finds a Costco receipt
+// whose text mentions gas, which a single substring match would miss.
+export function searchTerms(query: string | undefined): string[] {
+  return (query ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, MAX_TERMS)
+}
+
 function buildWhere(
   scope: ReceiptScope,
   filters: ReceiptSearchFilters,
@@ -269,17 +291,20 @@ function buildWhere(
     return `$${params.length}`
   }
 
-  const clauses =
-    scope.kind === "user"
-      ? [`user_id = ${add(scope.userId)}`]
-      : [`org_id = ${add(scope.orgId)}`]
+  const clauses = [scopeClause(scope, add)]
 
-  const query = filters.query?.trim()
-  if (query) {
-    const pattern = add(`%${escapeLike(query)}%`)
-    clauses.push(
-      `(merchant ilike ${pattern} or notes ilike ${pattern} or raw_text ilike ${pattern})`
-    )
+  for (const term of searchTerms(filters.query)) {
+    const pattern = add(`%${escapeLike(term)}%`)
+    const matches = [
+      `merchant ilike ${pattern}`,
+      `notes ilike ${pattern}`,
+      `raw_text ilike ${pattern}`,
+    ]
+    if (AMOUNT_TERM.test(term)) {
+      const cents = Math.round(Number(term.replace("$", "")) * 100)
+      matches.push(`total_cents = ${add(cents)}`)
+    }
+    clauses.push(`(${matches.join(" or ")})`)
   }
 
   if (includeTypes && filters.receiptTypes && filters.receiptTypes.length > 0) {
@@ -300,6 +325,53 @@ function buildWhere(
   }
 
   return { where: clauses.join(" and "), params }
+}
+
+export type MerchantSuggestionRow = {
+  merchant: string
+  receipt_count: number
+}
+
+/**
+ * Merchant names for the search box's autocomplete.
+ *
+ * Matches anywhere in the name, but names that start with what was typed come
+ * first, then the merchants with the most receipts. Case variants of the same
+ * name ("COSTCO", "Costco") are folded into one suggestion.
+ */
+export async function selectMerchantSuggestions(
+  scope: ReceiptScope,
+  query: string,
+  limit = 6
+): Promise<MerchantSuggestionRow[]> {
+  const text = query.trim()
+  if (!text) return []
+
+  const sql = getSql()
+  const params: unknown[] = []
+  const add = (value: unknown) => {
+    params.push(value)
+    return `$${params.length}`
+  }
+
+  const where = scopeClause(scope, add)
+  const contains = add(`%${escapeLike(text)}%`)
+  const prefix = add(`${escapeLike(text)}%`)
+  const max = Math.min(Math.max(Math.trunc(limit), 1), 20)
+
+  const rows = await sql.query(
+    `select min(merchant) as merchant, count(*)::int as receipt_count
+     from receipts
+     where ${where} and merchant ilike ${contains}
+     group by lower(merchant)
+     order by bool_or(merchant ilike ${prefix}) desc,
+              count(*) desc,
+              min(merchant) asc
+     limit ${max}`,
+    params
+  )
+
+  return rows as MerchantSuggestionRow[]
 }
 
 export async function searchReceipts(

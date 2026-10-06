@@ -42,30 +42,69 @@ function centsToInput(value: number | undefined) {
   return value === undefined ? undefined : (value / 100).toFixed(2)
 }
 
-// Builds a /search URL from the current params plus changes. Any change other
-// than the page number sends the user back to page 1.
+// The canonical query string for a set of search params. The page URL, the
+// autocomplete API URL and the client-side cache key are all built from this,
+// so the same search always lands on the same cache entry.
+export function searchQueryString(params: ReceiptSearchParams): string {
+  const qs = new URLSearchParams()
+  if (params.scope === "org") qs.set("scope", "org")
+  const query = params.query?.trim()
+  if (query) qs.set("q", query)
+  for (const type of [...(params.receiptTypes ?? [])].sort()) {
+    qs.append("type", type)
+  }
+  if (params.purchasedFrom) qs.set("from", params.purchasedFrom)
+  if (params.purchasedTo) qs.set("to", params.purchasedTo)
+  const min = centsToInput(params.minTotalCents)
+  if (min) qs.set("min", min)
+  const max = centsToInput(params.maxTotalCents)
+  if (max) qs.set("max", max)
+  if (params.sort && params.sort !== "newest") qs.set("sort", params.sort)
+  if (params.page && params.page > 1) qs.set("page", String(params.page))
+  return qs.toString()
+}
+
+// Applies changes to the current params. Any change other than the page
+// number sends the user back to page 1.
+export function nextSearchParams(
+  current: ReceiptSearchParams,
+  changes: Partial<ReceiptSearchParams> = {}
+): ReceiptSearchParams {
+  const next = { ...current, ...changes }
+  if (!("page" in changes)) next.page = undefined
+  return next
+}
+
+// Builds a /search URL from the current params plus changes.
 export function searchHref(
   current: ReceiptSearchParams,
   changes: Partial<ReceiptSearchParams> = {}
 ): string {
-  const next = { ...current, ...changes }
-  if (!("page" in changes)) next.page = undefined
-
-  const params = new URLSearchParams()
-  if (next.scope === "org") params.set("scope", "org")
-  if (next.query) params.set("q", next.query)
-  for (const type of next.receiptTypes ?? []) params.append("type", type)
-  if (next.purchasedFrom) params.set("from", next.purchasedFrom)
-  if (next.purchasedTo) params.set("to", next.purchasedTo)
-  const min = centsToInput(next.minTotalCents)
-  if (min) params.set("min", min)
-  const max = centsToInput(next.maxTotalCents)
-  if (max) params.set("max", max)
-  if (next.sort && next.sort !== "newest") params.set("sort", next.sort)
-  if (next.page && next.page > 1) params.set("page", String(next.page))
-
-  const query = params.toString()
+  const query = searchQueryString(nextSearchParams(current, changes))
   return query ? `/search?${query}` : "/search"
+}
+
+// The /search URL for exactly these params (page included).
+export function searchPageHref(params: ReceiptSearchParams): string {
+  const query = searchQueryString(params)
+  return query ? `/search?${query}` : "/search"
+}
+
+// The autocomplete route. Same params as the page, same parser on the server.
+export function searchApiHref(params: ReceiptSearchParams): string {
+  const query = searchQueryString(params)
+  return query ? `/api/receipts/search?${query}` : "/api/receipts/search"
+}
+
+// URLSearchParams in the shape Next hands a page, so the route handler can
+// run the exact same parser as the page.
+export function rawSearchParamsFrom(search: URLSearchParams): RawSearchParams {
+  const raw: RawSearchParams = {}
+  for (const key of new Set(search.keys())) {
+    const values = search.getAll(key)
+    raw[key] = values.length > 1 ? values : values[0]
+  }
+  return raw
 }
 
 export function toggleType(

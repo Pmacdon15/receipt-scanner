@@ -1,19 +1,16 @@
 "use client"
 
 import * as React from "react"
-import Form from "next/form"
-import Link from "next/link"
-import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { ReceiptTypeId } from "@/lib/receipt-types"
 import {
   fieldErrorsFrom,
   searchFiltersFormSchema,
   type SearchFiltersField,
+  type SearchFiltersForm as SearchFiltersValues,
 } from "@/lib/schemas"
 import { SORT_OPTIONS } from "@/lib/search-params"
 
@@ -22,17 +19,23 @@ const SELECT_CLASS =
 
 type FieldErrors = Partial<Record<SearchFiltersField, string>>
 
+export type { SearchFiltersValues }
+
+/**
+ * Date, amount and sort filters. The text query lives in the search bar; this
+ * form validates its own fields and hands them to the parent, which runs the
+ * search (optimistically, from the cache when it can).
+ *
+ * Inputs are uncontrolled, so the parent remounts the form (via `key`) when
+ * the applied filters change from elsewhere, e.g. Clear or the back button.
+ */
 export function SearchFiltersForm({
-  scope,
-  receiptTypes,
   values,
   filtered,
-  clearHref,
+  onApply,
+  onClear,
 }: {
-  scope: "mine" | "org"
-  receiptTypes: ReceiptTypeId[] | undefined
   values: {
-    q: string
     from: string
     to: string
     min: string
@@ -40,55 +43,30 @@ export function SearchFiltersForm({
     sort: string
   }
   filtered: boolean
-  clearHref: string
+  onApply: (values: SearchFiltersValues) => void
+  onClear: () => void
 }) {
   const [errors, setErrors] = React.useState<FieldErrors>({})
 
-  // Catch typos (an amount like "12,5o", an end date before the start)
-  // before navigating. The page still parses the URL leniently on the server.
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
     const parsed = searchFiltersFormSchema.safeParse(
       Object.fromEntries(new FormData(event.currentTarget))
     )
 
     if (!parsed.success) {
-      event.preventDefault()
       setErrors(fieldErrorsFrom<SearchFiltersField>(parsed.error))
       toast.error("Fix the highlighted filters and try again.")
       return
     }
 
     setErrors({})
+    onApply(parsed.data)
   }
 
   return (
-    <Form
-      action="/search"
-      className="flex flex-col gap-4"
-      onSubmit={handleSubmit}
-    >
-      {scope === "org" && <input type="hidden" name="scope" value="org" />}
-      {receiptTypes?.map((type) => (
-        <input key={type} type="hidden" name="type" value={type} />
-      ))}
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="q">Merchant, notes or text</Label>
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={values.q}
-            placeholder="e.g. Costco"
-            className="pl-8"
-            aria-invalid={Boolean(errors.q)}
-          />
-        </div>
-        <FieldError message={errors.q} />
-      </div>
-
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="from">From</Label>
@@ -161,19 +139,15 @@ export function SearchFiltersForm({
 
       <div className="flex gap-2">
         <Button type="submit" className="flex-1">
-          Search
+          Apply filters
         </Button>
         {filtered && (
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link href={clearHref} />}
-          >
-            Clear
+          <Button type="button" variant="outline" onClick={onClear}>
+            Clear all
           </Button>
         )}
       </div>
-    </Form>
+    </form>
   )
 }
 
