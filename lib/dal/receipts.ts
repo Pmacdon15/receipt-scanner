@@ -139,6 +139,7 @@ export const getReceipt = cache(async (id: string) => {
  */
 export const getReceiptImage = cache(async (id: string) => {
   const userId = await requireUserId()
+  if (!receiptIdSchema.safeParse(id).success) return null
   const row = await selectReceiptById(userId, id)
   return row?.image_url ?? null
 })

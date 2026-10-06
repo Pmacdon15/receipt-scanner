@@ -1,0 +1,7 @@
+[test]
+root = "./tests"
+# Mocks for Clerk, next/cache and the Neon client must be registered before any
+# app module loads, so they are preloaded rather than imported by each test.
+# Run the suite with `bun run test`, which adds --isolate so one file's
+# mock.module() calls and DOM globals cannot leak into another.
+preload = ["./tests/helpers/server-mocks.ts"]

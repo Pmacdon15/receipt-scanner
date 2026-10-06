@@ -55,7 +55,7 @@ export type InsertReceiptInput = {
   detectedConfidence: number | null
   rawText: string | null
   /** Blob pathname from the upload route, or null for a hand-entered receipt. */
-  imageUrl: string | null
+  imageUrl?: string | null
   notes: string | null
 }
 
@@ -126,7 +126,7 @@ export async function insertReceipt(
       ${input.rawText}, ${input.imageUrl}, ${input.notes}
     )
     returning
-      id, user_id, merchant, purchased_on, currency,
+      id, user_id, org_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
       receipt_type, type_source, detected_type, detected_confidence,
       raw_text, notes, created_at, updated_at,
