@@ -108,6 +108,27 @@ export async function selectReceiptById(
   return rows[0] ?? null
 }
 
+/**
+ * A receipt's photo pathname when the user may see it: they saved it, or it
+ * was saved into their active organization (the same rule the org search
+ * uses). Returns only the pathname, so nothing else of a teammate's row leaks.
+ */
+export async function selectVisibleReceiptImage(
+  userId: string,
+  orgId: string | null,
+  id: string
+): Promise<string | null> {
+  const sql = getSql()
+  const rows = (await sql`
+    select image_url from receipts
+    where id = ${id}
+      and (user_id = ${userId} or (${orgId}::text is not null and org_id = ${orgId}))
+    limit 1
+  `) as Pick<ReceiptRow, "image_url">[]
+
+  return rows[0]?.image_url ?? null
+}
+
 export async function insertReceipt(
   userId: string,
   input: InsertReceiptInput

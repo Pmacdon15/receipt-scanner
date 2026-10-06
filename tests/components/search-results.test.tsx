@@ -80,4 +80,28 @@ describe("SearchResults", () => {
     )
     expect(shown.getByText(/Bea Lee/)).toBeTruthy()
   })
+
+  test("offers a photo button only for receipts with a photo", () => {
+    const view = render(
+      <SearchResults
+        receipts={[
+          makeSearchedReceipt({ merchant: "With Photo", hasImage: true }),
+          makeSearchedReceipt({ merchant: "No Photo", hasImage: false }),
+        ]}
+        showUploader={false}
+        filtered={false}
+      />
+    )
+
+    expect(
+      view.getByRole("button", {
+        name: "View the photo of the receipt from With Photo",
+      })
+    ).toBeTruthy()
+    expect(
+      view.queryByRole("button", {
+        name: "View the photo of the receipt from No Photo",
+      })
+    ).toBeNull()
+  })
 })

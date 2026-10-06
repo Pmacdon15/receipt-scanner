@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { SearchXIcon, SparklesIcon, UserIcon } from "lucide-react"
 
+import { ReceiptPhotoButton } from "@/components/receipts/receipt-photo-sheet"
 import { Badge } from "@/components/ui/badge"
 import type { SearchedReceipt } from "@/lib/dal/receipts"
 import { formatDate, formatMoney } from "@/lib/money"
@@ -57,9 +58,22 @@ export function SearchResults({
             </div>
 
             <div className="flex items-center gap-2 sm:flex-col sm:items-end">
-              <p className="font-semibold tabular-nums">
-                {formatMoney(receipt.totalCents, receipt.currency)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold tabular-nums">
+                  {formatMoney(receipt.totalCents, receipt.currency)}
+                </p>
+                {receipt.hasImage && (
+                  <ReceiptPhotoButton
+                    receipt={{
+                      id: receipt.id,
+                      merchant: receipt.merchant,
+                      purchasedOn: receipt.purchasedOn,
+                      totalCents: receipt.totalCents,
+                      currency: receipt.currency,
+                    }}
+                  />
+                )}
+              </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="secondary">
                   {receiptTypeLabel(receipt.receiptType)}

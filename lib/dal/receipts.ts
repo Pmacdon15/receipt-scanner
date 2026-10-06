@@ -9,6 +9,7 @@ import {
   selectReceipts,
   searchReceipts as searchReceiptRows,
   selectReceiptTotals,
+  selectVisibleReceiptImage,
   updateReceiptType,
   type ReceiptListRow,
   type ReceiptTotals,
@@ -133,15 +134,16 @@ export const getReceipt = cache(async (id: string) => {
 /**
  * The blob pathname of the receipt's scanned photo, or null when it has none.
  *
- * Scoped to the signed-in user, which is what makes it safe for the image route
- * to serve whatever comes back: a receipt belonging to somebody else reads as
- * missing here.
+ * Scoped to what the signed-in user can already see in search: their own
+ * receipts, plus any saved into their active organization. That is what makes
+ * it safe for the image route to serve whatever comes back: any other receipt
+ * reads as missing here.
  */
 export const getReceiptImage = cache(async (id: string) => {
   const userId = await requireUserId()
+  const orgId = await getActiveOrgId()
   if (!receiptIdSchema.safeParse(id).success) return null
-  const row = await selectReceiptById(userId, id)
-  return row?.image_url ?? null
+  return selectVisibleReceiptImage(userId, orgId, id)
 })
 
 export const getReceiptTotals = cache(async (): Promise<ReceiptTotals> => {
