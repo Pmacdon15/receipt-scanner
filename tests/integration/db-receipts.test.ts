@@ -6,12 +6,9 @@ import {
   expect,
   test,
 } from "bun:test"
-
-import { fake } from "../helpers/server-mocks"
-import { createTestDb, type TestDb } from "../helpers/test-db"
-
 import {
   deleteReceipt,
+  type InsertReceiptInput,
   insertReceipt,
   searchReceipts,
   searchTerms,
@@ -20,8 +17,9 @@ import {
   selectReceipts,
   selectReceiptTotals,
   updateReceiptType,
-  type InsertReceiptInput,
 } from "@/lib/db/receipts"
+import { fake } from "../helpers/server-mocks"
+import { createTestDb, type TestDb } from "../helpers/test-db"
 
 let testDb: TestDb
 
@@ -429,8 +427,9 @@ describe("searchReceipts with several words or an amount", () => {
     const narrow = await searchReceipts(mine, { query: "costco kirkland" })
     expect(narrow.rows.map((r) => r.merchant)).toEqual(["Costco Wholesale"])
 
-    expect((await searchReceipts(mine, { query: "costco trip" })).matchCount)
-      .toBe(0)
+    expect(
+      (await searchReceipts(mine, { query: "costco trip" })).matchCount
+    ).toBe(0)
   })
 
   test("an amount matches receipt totals", async () => {
@@ -551,7 +550,10 @@ describe("split receipts", () => {
 
   test("the type filter matches any category in the split", async () => {
     await insertReceipt("user_a", costcoRun())
-    await insertReceipt("user_a", receipt({ merchant: "Shell", receiptType: "fuel" }))
+    await insertReceipt(
+      "user_a",
+      receipt({ merchant: "Shell", receiptType: "fuel" })
+    )
 
     const hardware = await searchReceipts(mine, { receiptTypes: ["hardware"] })
     expect(hardware.rows.map((r) => r.merchant)).toEqual(["Costco"])

@@ -1,10 +1,10 @@
 "use client"
 
+import { UserButton, useAuth } from "@clerk/nextjs"
+import { MenuIcon, ReceiptTextIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
-import { useAuth, UserButton } from "@clerk/nextjs"
-import { MenuIcon, ReceiptTextIcon } from "lucide-react"
 
 import {
   ReturnSignInButton,
@@ -12,7 +12,6 @@ import {
 } from "@/components/auth/return-auth-buttons"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Sheet,
   SheetContent,
@@ -20,8 +19,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import { site } from "@/lib/site"
+import { cn } from "@/lib/utils"
 
 export function SiteHeader() {
   const [open, setOpen] = React.useState(false)
@@ -29,7 +29,7 @@ export function SiteHeader() {
   const { isLoaded, isSignedIn } = useAuth()
 
   return (
-    <header className="sticky top-0 print:hidden z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">

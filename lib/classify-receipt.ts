@@ -1,5 +1,5 @@
 import { FALLBACK_RECEIPT_TYPE, type ReceiptTypeId } from "@/lib/receipt-types"
-import { classificationSchema, type Classification } from "@/lib/schemas"
+import { type Classification, classificationSchema } from "@/lib/schemas"
 
 export type { Classification }
 

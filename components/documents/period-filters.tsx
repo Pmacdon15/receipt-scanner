@@ -1,5 +1,5 @@
-import Link from "next/link"
 import { XIcon } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +51,7 @@ export function PeriodFilters({
               aria-selected={params.scope === scope}
               href={documentsHref({ ...params, scope })}
               className={cn(
-                "rounded-md px-3 py-1 text-sm text-muted-foreground transition-colors",
+                "rounded-md px-3 py-1 text-muted-foreground text-sm transition-colors",
                 params.scope === scope &&
                   "bg-background font-medium text-foreground shadow-sm"
               )}
@@ -143,7 +143,7 @@ export function PeriodFilters({
       </form>
 
       {extra.length > 0 && (
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
           Also filtered by {extra.join(", ")} from search.
           <Button
             size="xs"

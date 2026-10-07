@@ -18,10 +18,10 @@ function Chip({ type }: { type: (typeof RECEIPT_TYPES)[number] }) {
   return (
     <li className="flex shrink-0 items-center gap-3 rounded-full border bg-card px-4 py-2 shadow-xs">
       <span className={cn("size-2 rounded-full", DOT[type.id])} />
-      <span className="text-sm font-medium whitespace-nowrap">
+      <span className="whitespace-nowrap font-medium text-sm">
         {type.label}
       </span>
-      <span className="hidden text-xs whitespace-nowrap text-muted-foreground sm:inline">
+      <span className="hidden whitespace-nowrap text-muted-foreground text-xs sm:inline">
         {type.description}
       </span>
     </li>
@@ -36,7 +36,7 @@ function Chip({ type }: { type: (typeof RECEIPT_TYPES)[number] }) {
 export function CategoryRail() {
   return (
     <div className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)] motion-reduce:[mask-image:none]">
-      <div className="flex w-max animate-home-marquee gap-3 hover:[animation-play-state:paused] motion-reduce:w-full">
+      <div className="flex w-max animate-home-marquee gap-3 motion-reduce:w-full hover:[animation-play-state:paused]">
         <ul className="flex gap-3 motion-reduce:flex-wrap">
           {RECEIPT_TYPES.map((type) => (
             <Chip key={type.id} type={type} />

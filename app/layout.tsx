@@ -1,5 +1,5 @@
-import type { Metadata } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
+import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
@@ -49,7 +49,7 @@ export default function RootLayout({
                 <SiteHeader />
                 <main className="flex-1">{children}</main>
                 <footer className="border-t py-6 print:hidden">
-                  <div className="mx-auto w-full max-w-6xl px-4 text-sm text-muted-foreground sm:px-6">
+                  <div className="mx-auto w-full max-w-6xl px-4 text-muted-foreground text-sm sm:px-6">
                     {site.name} — {site.tagline}
                   </div>
                 </footer>

@@ -1,12 +1,12 @@
 "use client"
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
 import {
   keepPreviousData,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
+import * as React from "react"
 
 import { SearchBox } from "@/components/search/search-box"
 import {
@@ -122,8 +122,7 @@ function SearchWorkspace({
   // then hit the cache instead of showing the old page.
   React.useEffect(() => {
     const key = receiptSearchKeys.search(viewer, params)
-    const existing =
-      queryClient.getQueryData<ReceiptSearchWithSuggestions>(key)
+    const existing = queryClient.getQueryData<ReceiptSearchWithSuggestions>(key)
     const hasSuggestions = Boolean(existing?.suggestions.length)
     queryClient.setQueryData<ReceiptSearchWithSuggestions>(
       key,
@@ -178,7 +177,10 @@ function SearchWorkspace({
     [queryClient, viewer]
   )
 
-  const nav = React.useMemo(() => ({ navigate, prefetch }), [navigate, prefetch])
+  const nav = React.useMemo(
+    () => ({ navigate, prefetch }),
+    [navigate, prefetch]
+  )
 
   // ---------------------------------------------------------------------------
   // Search bar + autocomplete.
@@ -265,7 +267,7 @@ function SearchWorkspace({
   return (
     <SearchNavContext value={nav}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="font-semibold text-3xl tracking-tight">
           Search receipts
         </h1>
         <p className="text-pretty text-muted-foreground">

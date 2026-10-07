@@ -1,8 +1,8 @@
 "use client"
 
-import * as React from "react"
-import Link from "next/link"
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react"
+import Link from "next/link"
+import * as React from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -100,7 +100,7 @@ export function ScopeTabs({
             to={nextSearchParams(current, { scope: tab.scope })}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+              "rounded-md px-3 py-1 font-medium text-muted-foreground text-sm transition-colors hover:text-foreground",
               active && "bg-background text-foreground shadow-sm"
             )}
           >
@@ -127,11 +127,11 @@ export function TypeChips({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-medium">Receipt type</h2>
+        <h2 className="font-medium text-sm">Receipt type</h2>
         {selected.size > 0 && (
           <SearchLink
             to={nextSearchParams(current, { receiptTypes: undefined })}
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground text-sm hover:text-foreground"
           >
             All types
           </SearchLink>
@@ -196,7 +196,7 @@ export function Stats({
       {exportHref && results.matchCount > 0 && (
         <Link
           href={exportHref}
-          className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="w-fit text-muted-foreground text-sm underline-offset-4 hover:text-foreground hover:underline"
         >
           Download these as a PDF, spreadsheet or ZIP
         </Link>
@@ -209,8 +209,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-muted-foreground text-sm">{label}</p>
+        <p className="mt-1 font-semibold text-2xl tabular-nums">{value}</p>
       </CardContent>
     </Card>
   )
@@ -235,7 +235,7 @@ export function Pagination({
       aria-label="Pages"
       className="flex items-center justify-between gap-3 pt-2"
     >
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         {first}–{last} of {results.matchCount}
       </p>
       <div className="flex gap-2">

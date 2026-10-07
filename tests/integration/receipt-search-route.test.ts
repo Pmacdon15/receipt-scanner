@@ -8,14 +8,12 @@ import {
   test,
 } from "bun:test"
 import type { NextRequest } from "next/server"
-
-import { fake, resetFakes, signIn } from "../helpers/server-mocks"
-import { createTestDb, type TestDb } from "../helpers/test-db"
-
 import { GET } from "@/app/api/receipts/search/route"
 import type { ReceiptSearchWithSuggestions } from "@/lib/dal/receipts"
-import { insertReceipt, type InsertReceiptInput } from "@/lib/db/receipts"
+import { type InsertReceiptInput, insertReceipt } from "@/lib/db/receipts"
 import { searchApiHref } from "@/lib/search-params"
+import { fake, resetFakes, signIn } from "../helpers/server-mocks"
+import { createTestDb, type TestDb } from "../helpers/test-db"
 
 let testDb: TestDb
 
@@ -58,9 +56,7 @@ function receipt(
 }
 
 function get(path: string) {
-  return GET(
-    new Request(`http://localhost${path}`) as unknown as NextRequest
-  )
+  return GET(new Request(`http://localhost${path}`) as unknown as NextRequest)
 }
 
 describe("GET /api/receipts/search", () => {

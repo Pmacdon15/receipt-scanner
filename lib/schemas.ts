@@ -44,8 +44,7 @@ export const isoDateSchema = z
   .refine((value) => {
     const date = new Date(`${value}T00:00:00Z`)
     return (
-      !Number.isNaN(date.getTime()) &&
-      date.toISOString().slice(0, 10) === value
+      !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
     )
   }, "Enter a real date.")
 
@@ -181,82 +180,78 @@ const scanSplitRowSchema = z
         .max(MAX_CENTS, "That split amount is too large.")
     ),
   })
-  .transform((row): ReceiptSplit => ({ type: row.type, amountCents: row.amount }))
+  .transform(
+    (row): ReceiptSplit => ({ type: row.type, amountCents: row.amount })
+  )
 
-export const scanReceiptFormSchema = z.object({
-  merchant: z.preprocess(
-    formText,
-    z
-      .string()
-      .min(1, MERCHANT_REQUIRED)
-      .max(MERCHANT_MAX, MERCHANT_TOO_LONG)
-  ),
-  purchasedOn: z.preprocess(formTextOrNull, isoDateSchema.nullable()),
-  total: z.preprocess(
-    formCents,
-    z
-      .number({ error: "Enter the receipt total." })
-      .int()
-      .min(0, "The total cannot be negative.")
-      .max(MAX_CENTS, "That total is too large.")
-  ),
-  subtotal: z.preprocess(formCents, centsSchema.nullable()),
-  tax: z.preprocess(formCents, centsSchema.nullable()),
-  // An empty value means "use whatever detection picked".
-  receiptType: z.preprocess(
-    (value) => (typeof value === "string" && value !== "" ? value : undefined),
-    receiptTypeId("Pick a type from the list.").optional()
-  ),
-  rawText: z.preprocess(
-    formTextOrNull,
-    z
-      .string()
-      .max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG)
-      .nullable()
-  ),
-  imagePathname: z.preprocess(
-    formTextOrNull,
-    z.string().max(500).nullable().optional()
-  ),
-  notes: z.preprocess(
-    formTextOrNull,
-    z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable()
-  ),
-  // The per-category split, posted as JSON:
-  // [{ "type": "grocery", "amount": "30.00" }, ...]. Empty means the receipt
-  // is one category, picked by `receiptType` or detection.
-  splits: z.preprocess(
-    formJson,
-    z
-      .array(scanSplitRowSchema, { error: "The split could not be read." })
-      .min(2, SPLIT_TOO_FEW)
-      .max(MAX_SPLITS, SPLIT_TOO_MANY)
-      .refine(hasUniqueTypes, SPLIT_DUPLICATE)
-      .nullable()
-  ),
-  // What the photo reader (lib/extract-receipt.ts) guessed, echoed back so a
-  // receipt saved on "detect automatically" is filed under the photo's guess
-  // instead of the keyword one. Hints only: anything off is dropped.
-  detectedType: z.preprocess(
-    formTextOrUndefined,
-    receiptTypeIdSchema.optional().catch(undefined)
-  ),
-  detectedConfidence: z.preprocess(
-    (value) => {
+export const scanReceiptFormSchema = z
+  .object({
+    merchant: z.preprocess(
+      formText,
+      z.string().min(1, MERCHANT_REQUIRED).max(MERCHANT_MAX, MERCHANT_TOO_LONG)
+    ),
+    purchasedOn: z.preprocess(formTextOrNull, isoDateSchema.nullable()),
+    total: z.preprocess(
+      formCents,
+      z
+        .number({ error: "Enter the receipt total." })
+        .int()
+        .min(0, "The total cannot be negative.")
+        .max(MAX_CENTS, "That total is too large.")
+    ),
+    subtotal: z.preprocess(formCents, centsSchema.nullable()),
+    tax: z.preprocess(formCents, centsSchema.nullable()),
+    // An empty value means "use whatever detection picked".
+    receiptType: z.preprocess(
+      (value) =>
+        typeof value === "string" && value !== "" ? value : undefined,
+      receiptTypeId("Pick a type from the list.").optional()
+    ),
+    rawText: z.preprocess(
+      formTextOrNull,
+      z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullable()
+    ),
+    imagePathname: z.preprocess(
+      formTextOrNull,
+      z.string().max(500).nullable().optional()
+    ),
+    notes: z.preprocess(
+      formTextOrNull,
+      z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable()
+    ),
+    // The per-category split, posted as JSON:
+    // [{ "type": "grocery", "amount": "30.00" }, ...]. Empty means the receipt
+    // is one category, picked by `receiptType` or detection.
+    splits: z.preprocess(
+      formJson,
+      z
+        .array(scanSplitRowSchema, { error: "The split could not be read." })
+        .min(2, SPLIT_TOO_FEW)
+        .max(MAX_SPLITS, SPLIT_TOO_MANY)
+        .refine(hasUniqueTypes, SPLIT_DUPLICATE)
+        .nullable()
+    ),
+    // What the photo reader (lib/extract-receipt.ts) guessed, echoed back so a
+    // receipt saved on "detect automatically" is filed under the photo's guess
+    // instead of the keyword one. Hints only: anything off is dropped.
+    detectedType: z.preprocess(
+      formTextOrUndefined,
+      receiptTypeIdSchema.optional().catch(undefined)
+    ),
+    detectedConfidence: z.preprocess((value) => {
       const text = formText(value)
       return text === "" ? undefined : Number(text)
-    },
-    z.number().min(0).max(1).optional().catch(undefined)
-  ),
-}).superRefine((value, ctx) => {
-  if (value.splits && sumSplits(value.splits) !== value.total) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["splits"],
-      message: splitMismatchMessage(sumSplits(value.splits), value.total),
-    })
-  }
-})
+    }, z.number().min(0).max(1).optional().catch(undefined)),
+  })
+  .superRefine((value, ctx) => {
+    if (value.splits && sumSplits(value.splits) !== value.total) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["splits"],
+        message: splitMismatchMessage(sumSplits(value.splits), value.total),
+      })
+    }
+  })
 
 export type ScanReceiptForm = z.infer<typeof scanReceiptFormSchema>
 export type ScanReceiptField = keyof ScanReceiptForm | "image"
@@ -264,41 +259,46 @@ export type ScanReceiptField = keyof ScanReceiptForm | "image"
 // ---------------------------------------------------------------------------
 // Receipt writes (lib/dal/receipts.ts)
 
-export const newReceiptSchema = z.object({
-  merchant: z
-    .string()
-    .trim()
-    .min(1, MERCHANT_REQUIRED)
-    .max(MERCHANT_MAX, MERCHANT_TOO_LONG),
-  purchasedOn: isoDateSchema.nullable(),
-  currency: currencySchema,
-  subtotalCents: centsSchema.nullable(),
-  taxCents: centsSchema.nullable(),
-  totalCents: centsSchema,
-  receiptType: receiptTypeIdSchema.optional(),
-  rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullable(),
-  imageUrl: z.string().max(500).nullish(),
-  notes: z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable(),
-  // Set when the receipt covers more than one category; must add up to
-  // totalCents. Takes precedence over receiptType.
-  splits: receiptSplitsSchema.nullish(),
-  // A category guess made before saving (the photo reader). Used in place of
-  // the keyword classifier when present.
-  detected: z
-    .object({
-      type: receiptTypeIdSchema,
-      confidence: z.number().min(0).max(1),
-    })
-    .optional(),
-}).superRefine((value, ctx) => {
-  if (value.splits && sumSplits(value.splits) !== value.totalCents) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["splits"],
-      message: splitMismatchMessage(sumSplits(value.splits), value.totalCents),
-    })
-  }
-})
+export const newReceiptSchema = z
+  .object({
+    merchant: z
+      .string()
+      .trim()
+      .min(1, MERCHANT_REQUIRED)
+      .max(MERCHANT_MAX, MERCHANT_TOO_LONG),
+    purchasedOn: isoDateSchema.nullable(),
+    currency: currencySchema,
+    subtotalCents: centsSchema.nullable(),
+    taxCents: centsSchema.nullable(),
+    totalCents: centsSchema,
+    receiptType: receiptTypeIdSchema.optional(),
+    rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullable(),
+    imageUrl: z.string().max(500).nullish(),
+    notes: z.string().max(NOTES_MAX, NOTES_TOO_LONG).nullable(),
+    // Set when the receipt covers more than one category; must add up to
+    // totalCents. Takes precedence over receiptType.
+    splits: receiptSplitsSchema.nullish(),
+    // A category guess made before saving (the photo reader). Used in place of
+    // the keyword classifier when present.
+    detected: z
+      .object({
+        type: receiptTypeIdSchema,
+        confidence: z.number().min(0).max(1),
+      })
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.splits && sumSplits(value.splits) !== value.totalCents) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["splits"],
+        message: splitMismatchMessage(
+          sumSplits(value.splits),
+          value.totalCents
+        ),
+      })
+    }
+  })
 
 export type NewReceipt = z.infer<typeof newReceiptSchema>
 
@@ -478,9 +478,7 @@ export const searchFiltersFormSchema = z
   .object({
     q: z.preprocess(
       formText,
-      z
-        .string()
-        .max(SEARCH_QUERY_MAX, "Keep the search under 200 characters.")
+      z.string().max(SEARCH_QUERY_MAX, "Keep the search under 200 characters.")
     ),
     from: z.preprocess(formTextOrUndefined, isoDateSchema.optional()),
     to: z.preprocess(formTextOrUndefined, isoDateSchema.optional()),

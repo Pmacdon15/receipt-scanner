@@ -22,14 +22,14 @@ import { get } from "@vercel/blob"
 import { parseMoneyToCents } from "@/lib/money"
 import { RECEIPT_TYPES, type ReceiptTypeId } from "@/lib/receipt-types"
 import {
+  type ExtractedFields,
+  type ExtractionResult,
   extractionResultSchema,
   isoDateSchema,
   MERCHANT_MAX,
   RAW_TEXT_MAX,
   receiptImagePathnameSchema,
   receiptTypeIdSchema,
-  type ExtractedFields,
-  type ExtractionResult,
 } from "@/lib/schemas"
 
 export type { ExtractedFields, ExtractionResult }
@@ -116,7 +116,7 @@ export type ExtractDeps = {
 
 async function readImageFromBlob(pathname: string): Promise<Uint8Array | null> {
   const result = await get(pathname, { access: "private" })
-  if (!result || result.statusCode !== 200) return null
+  if (result?.statusCode !== 200) return null
   return new Uint8Array(await new Response(result.stream).arrayBuffer())
 }
 

@@ -14,8 +14,7 @@ import {
 describe("schemas", () => {
   describe("receiptImagePathnameSchema", () => {
     test("validates properly formatted receipt photo pathnames", () => {
-      const valid =
-        "receipts/user_abc/12345678-1234-1234-1234-123456789abc.jpg"
+      const valid = "receipts/user_abc/12345678-1234-1234-1234-123456789abc.jpg"
       expect(receiptImagePathnameSchema.safeParse(valid).success).toBe(true)
     })
 
@@ -79,8 +78,7 @@ describe("schemas", () => {
   describe("imageUploadResponseSchema", () => {
     test("validates upload API response", () => {
       const valid = {
-        pathname:
-          "receipts/user_123/12345678-1234-1234-1234-123456789abc.jpg",
+        pathname: "receipts/user_123/12345678-1234-1234-1234-123456789abc.jpg",
       }
       expect(imageUploadResponseSchema.safeParse(valid).success).toBe(true)
     })
@@ -89,9 +87,7 @@ describe("schemas", () => {
       expect(
         imageUploadResponseSchema.safeParse({ pathname: "bad-path" }).success
       ).toBe(false)
-      expect(
-        imageUploadResponseSchema.safeParse({}).success
-      ).toBe(false)
+      expect(imageUploadResponseSchema.safeParse({}).success).toBe(false)
     })
   })
 
@@ -132,8 +128,7 @@ describe("schemas", () => {
         subtotalCents: null,
         taxCents: null,
         totalCents: 5000,
-        imageUrl:
-          "receipts/user_123/12345678-1234-1234-1234-123456789abc.jpg",
+        imageUrl: "receipts/user_123/12345678-1234-1234-1234-123456789abc.jpg",
         notes: null,
         rawText: null,
       })

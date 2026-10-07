@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-
-import { makeSearchedReceipt } from "../helpers/fixtures"
+import { matchingPreset, periodPresets } from "@/lib/documents/periods"
 
 import {
   buildReport,
@@ -11,13 +10,21 @@ import {
   formatCurrencyTotals,
   monthLabel,
 } from "@/lib/documents/report"
-import { matchingPreset, periodPresets } from "@/lib/documents/periods"
+import { makeSearchedReceipt } from "../helpers/fixtures"
 
 describe("buildReport", () => {
   test("adds up totals, tax and subtotal per currency", () => {
     const report = buildReport([
-      makeSearchedReceipt({ totalCents: 1050, taxCents: 50, subtotalCents: 1000 }),
-      makeSearchedReceipt({ totalCents: 2000, taxCents: null, subtotalCents: null }),
+      makeSearchedReceipt({
+        totalCents: 1050,
+        taxCents: 50,
+        subtotalCents: 1000,
+      }),
+      makeSearchedReceipt({
+        totalCents: 2000,
+        taxCents: null,
+        subtotalCents: null,
+      }),
       makeSearchedReceipt({ totalCents: 500, currency: "USD" }),
     ])
 
@@ -47,7 +54,9 @@ describe("buildReport", () => {
     ])
 
     const categories = report.currencies[0].byCategory
-    expect(categories.map((c) => [c.type, c.totalCents, c.receiptCount])).toEqual([
+    expect(
+      categories.map((c) => [c.type, c.totalCents, c.receiptCount])
+    ).toEqual([
       ["grocery", 3000, 1],
       ["hardware", 2217, 2],
     ])
@@ -60,14 +69,36 @@ describe("buildReport", () => {
     const report = buildReport([
       makeSearchedReceipt({ purchasedOn: "2026-03-04", totalCents: 300 }),
       makeSearchedReceipt({ purchasedOn: null, totalCents: 100 }),
-      makeSearchedReceipt({ purchasedOn: "2026-01-20", totalCents: 200, taxCents: 10 }),
+      makeSearchedReceipt({
+        purchasedOn: "2026-01-20",
+        totalCents: 200,
+        taxCents: 10,
+      }),
       makeSearchedReceipt({ purchasedOn: "2026-01-02", totalCents: 50 }),
     ])
 
     expect(report.currencies[0].byMonth).toEqual([
-      { month: "2026-01", label: "January 2026", receiptCount: 2, totalCents: 250, taxCents: 10 },
-      { month: "2026-03", label: "March 2026", receiptCount: 1, totalCents: 300, taxCents: 0 },
-      { month: null, label: "No date", receiptCount: 1, totalCents: 100, taxCents: 0 },
+      {
+        month: "2026-01",
+        label: "January 2026",
+        receiptCount: 2,
+        totalCents: 250,
+        taxCents: 10,
+      },
+      {
+        month: "2026-03",
+        label: "March 2026",
+        receiptCount: 1,
+        totalCents: 300,
+        taxCents: 0,
+      },
+      {
+        month: null,
+        label: "No date",
+        receiptCount: 1,
+        totalCents: 100,
+        taxCents: 0,
+      },
     ])
     expect(report.undatedCount).toBe(1)
     expect(report.firstDate).toBe("2026-01-02")
@@ -83,8 +114,13 @@ describe("buildReport", () => {
 
 describe("category helpers", () => {
   test("an unsplit receipt is wholly its one category", () => {
-    const receipt = makeSearchedReceipt({ receiptType: "fuel", totalCents: 900 })
-    expect(categoryShares(receipt)).toEqual([{ type: "fuel", amountCents: 900 }])
+    const receipt = makeSearchedReceipt({
+      receiptType: "fuel",
+      totalCents: 900,
+    })
+    expect(categoryShares(receipt)).toEqual([
+      { type: "fuel", amountCents: 900 },
+    ])
     expect(categoryLabel(receipt)).toBe("Fuel & Transport")
   })
 
@@ -128,11 +164,26 @@ describe("periodPresets", () => {
   const byId = Object.fromEntries(presets.map((p) => [p.id, p]))
 
   test("month, quarter and year ranges, including across a year boundary", () => {
-    expect(byId["this-month"]).toMatchObject({ from: "2026-02-01", to: "2026-02-28" })
-    expect(byId["last-month"]).toMatchObject({ from: "2026-01-01", to: "2026-01-31" })
-    expect(byId["this-quarter"]).toMatchObject({ from: "2026-01-01", to: "2026-03-31" })
-    expect(byId["last-quarter"]).toMatchObject({ from: "2025-10-01", to: "2025-12-31" })
-    expect(byId["last-year"]).toMatchObject({ from: "2025-01-01", to: "2025-12-31" })
+    expect(byId["this-month"]).toMatchObject({
+      from: "2026-02-01",
+      to: "2026-02-28",
+    })
+    expect(byId["last-month"]).toMatchObject({
+      from: "2026-01-01",
+      to: "2026-01-31",
+    })
+    expect(byId["this-quarter"]).toMatchObject({
+      from: "2026-01-01",
+      to: "2026-03-31",
+    })
+    expect(byId["last-quarter"]).toMatchObject({
+      from: "2025-10-01",
+      to: "2025-12-31",
+    })
+    expect(byId["last-year"]).toMatchObject({
+      from: "2025-01-01",
+      to: "2025-12-31",
+    })
     expect(byId.all.from).toBeUndefined()
   })
 

@@ -1,8 +1,8 @@
 "use client"
 
+import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { usePathname } from "next/navigation"
 import * as React from "react"
-import { SignInButton, SignUpButton } from "@clerk/nextjs"
 
 /**
  * The page to come back to after signing in or up: the one the person was on

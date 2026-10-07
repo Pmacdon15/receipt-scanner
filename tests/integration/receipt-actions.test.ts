@@ -7,19 +7,17 @@ import {
   spyOn,
   test,
 } from "bun:test"
-
-import { fake, resetFakes, signIn } from "../helpers/server-mocks"
-import { createTestDb, type TestDb } from "../helpers/test-db"
-
 import {
   deleteReceiptAction,
+  type ScanFormState,
   scanReceiptAction,
   setReceiptTypeAction,
   suggestReceiptTypeAction,
-  type ScanFormState,
 } from "@/app/actions/receipts"
 import { getReceipts } from "@/lib/dal/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
+import { fake, resetFakes, signIn } from "../helpers/server-mocks"
+import { createTestDb, type TestDb } from "../helpers/test-db"
 
 let testDb: TestDb
 

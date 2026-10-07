@@ -38,7 +38,7 @@ export async function GET(
   const pathname = await getReceiptImage(id)
   if (!pathname) return notFound()
 
-  let result
+  let result: Awaited<ReturnType<typeof get>>
   try {
     result = await get(pathname, { access: "private" })
   } catch (error) {
@@ -48,7 +48,7 @@ export async function GET(
 
   // The 200 branch is the only one carrying a stream; a 304 needs a conditional
   // request, which this handler never makes.
-  if (!result || result.statusCode !== 200) return notFound()
+  if (result?.statusCode !== 200) return notFound()
 
   return new Response(result.stream, {
     headers: {

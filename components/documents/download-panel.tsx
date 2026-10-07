@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import {
   FileArchiveIcon,
   FileSpreadsheetIcon,
@@ -8,6 +7,7 @@ import {
   LoaderCircleIcon,
   PrinterIcon,
 } from "lucide-react"
+import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,11 +22,11 @@ import {
   saveBlob,
 } from "@/lib/documents/download-client"
 import {
-  archiveBlob,
-  buildReceiptArchive,
   type ArchiveManifest,
   type ArchiveOrganize,
   type ArchiveProgress,
+  archiveBlob,
+  buildReceiptArchive,
 } from "@/lib/documents/receipt-archive"
 
 const ORGANIZE_OPTIONS: { id: ArchiveOrganize; label: string }[] = [
@@ -275,7 +275,7 @@ function DownloadCard({
           </span>
           {title}
         </div>
-        <p className="text-sm text-pretty text-muted-foreground">
+        <p className="text-pretty text-muted-foreground text-sm">
           {description}
         </p>
         <div className="mt-auto flex flex-wrap gap-2">{children}</div>

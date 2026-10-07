@@ -1,5 +1,5 @@
-import Link from "next/link"
 import { SearchXIcon, SparklesIcon, UserIcon } from "lucide-react"
+import Link from "next/link"
 
 import { ReceiptPhotoButton } from "@/components/receipts/receipt-photo-sheet"
 import { SplitSummary } from "@/components/receipts/split-summary"
@@ -24,7 +24,7 @@ export function SearchResults({
         <p className="mt-3 font-medium">
           {filtered ? "No receipts match" : "No receipts yet"}
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-muted-foreground text-sm">
           {filtered ? (
             "Try a wider date range, another type, or fewer words."
           ) : (
@@ -47,12 +47,12 @@ export function SearchResults({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="truncate font-medium">{receipt.merchant}</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-muted-foreground text-sm">
                 {formatDate(receipt.purchasedOn)}
                 {showUploader && <> · {receipt.uploadedBy}</>}
               </p>
               {receipt.notes && (
-                <p className="mt-2 line-clamp-2 text-sm text-pretty text-muted-foreground">
+                <p className="mt-2 line-clamp-2 text-pretty text-muted-foreground text-sm">
                   {receipt.notes}
                 </p>
               )}

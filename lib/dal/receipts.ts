@@ -1,23 +1,23 @@
-import { cache } from "react"
 import { auth, clerkClient } from "@clerk/nextjs/server"
+import { cache } from "react"
 
 import { classifyReceiptSafely } from "@/lib/classify-receipt"
 import {
   deleteReceipt,
   insertReceipt,
+  type ReceiptListRow,
+  type ReceiptScope,
+  type ReceiptTotals,
+  type ReceiptTypeFacet,
+  searchReceipts as searchReceiptRows,
   selectMerchantSuggestions,
   selectReceiptById,
   selectReceipts,
-  searchReceipts as searchReceiptRows,
   selectReceiptsForExport,
   selectReceiptTotals,
   selectVisibleReceiptImage,
   updateReceiptSplits,
   updateReceiptType,
-  type ReceiptListRow,
-  type ReceiptScope,
-  type ReceiptTotals,
-  type ReceiptTypeFacet,
 } from "@/lib/db/receipts"
 import { formatMoney } from "@/lib/money"
 import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
@@ -28,18 +28,18 @@ import {
 } from "@/lib/receipt-types"
 import {
   firstErrorMessage,
+  type NewReceipt,
   newReceiptSchema,
   primarySplitType,
+  type ReceiptSort,
+  type ReceiptSplit,
   receiptIdSchema,
   receiptSplitsSchema,
   receiptTypeIdSchema,
-  sumSplits,
-  suggestReceiptTypeInputSchema,
-  type NewReceipt,
-  type ReceiptSort,
-  type ReceiptSplit,
   type SearchScope,
   type SuggestReceiptTypeInput,
+  suggestReceiptTypeInputSchema,
+  sumSplits,
 } from "@/lib/schemas"
 
 export type { NewReceipt, ReceiptSplit, SearchScope }
@@ -222,7 +222,7 @@ export async function createReceipt(raw: NewReceipt): Promise<Receipt> {
     subtotalCents: input.subtotalCents,
     taxCents: input.taxCents,
     totalCents: input.totalCents,
-    receiptType: userPicked ? chosenType! : detected.type,
+    receiptType: chosenType ?? detected.type,
     typeSource: userPicked ? "user" : "auto",
     detectedType: detected.confidence > 0 ? detected.type : null,
     detectedConfidence: detected.confidence > 0 ? detected.confidence : null,
@@ -338,9 +338,11 @@ export type ReceiptSearchResults = {
 async function resolveSearchScope(requested: SearchScope) {
   const userId = await requireUserId()
   const orgId = await getActiveOrgId()
-  const scope: SearchScope = requested === "org" && orgId ? "org" : "mine"
   const where: ReceiptScope =
-    scope === "org" ? { kind: "org", orgId: orgId! } : { kind: "user", userId }
+    requested === "org" && orgId
+      ? { kind: "org", orgId }
+      : { kind: "user", userId }
+  const scope: SearchScope = where.kind === "org" ? "org" : "mine"
   return { userId, orgId, scope, where }
 }
 

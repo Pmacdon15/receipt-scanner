@@ -1,6 +1,6 @@
-import type { Metadata } from "next"
 import { auth } from "@clerk/nextjs/server"
 import { LockIcon, TriangleAlertIcon } from "lucide-react"
+import type { Metadata } from "next"
 
 import {
   ReturnSignInButton,
@@ -19,8 +19,8 @@ import {
   describePeriod,
   formatCurrencyTotals,
 } from "@/lib/documents/report"
-import { parseSearchParams, searchQueryString } from "@/lib/search-params"
 import type { RawSearchParams } from "@/lib/search-params"
+import { parseSearchParams, searchQueryString } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Documents",
@@ -47,10 +47,11 @@ export default async function DocumentsPage({
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 print:max-w-none print:p-0">
       <header className="flex flex-col gap-2 print:hidden">
-        <h1 className="text-3xl font-semibold tracking-tight">Documents</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">Documents</h1>
         <p className="text-pretty text-muted-foreground">
-          {scopeLabel} · {describePeriod(params.purchasedFrom, params.purchasedTo)}{" "}
-          · {report.receiptCount} receipt{report.receiptCount === 1 ? "" : "s"}{" "}
+          {scopeLabel} ·{" "}
+          {describePeriod(params.purchasedFrom, params.purchasedTo)} ·{" "}
+          {report.receiptCount} receipt{report.receiptCount === 1 ? "" : "s"}{" "}
           totalling {formatCurrencyTotals(report)}
         </p>
       </header>
@@ -63,7 +64,7 @@ export default async function DocumentsPage({
         />
 
         {data.truncated && (
-          <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200 print:hidden">
+          <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-amber-900 text-sm dark:text-amber-200 print:hidden">
             <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
             More than {EXPORT_LIMIT.toLocaleString("en-CA")} receipts match, so
             this shows the first {EXPORT_LIMIT.toLocaleString("en-CA")}. Pick a
@@ -98,12 +99,12 @@ function SignedOutPrompt() {
         <LockIcon className="size-5" />
       </span>
 
-      <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+      <h1 className="mt-5 font-semibold text-2xl tracking-tight">
         Sign in to see your documents
       </h1>
       <p className="mt-2 text-pretty text-muted-foreground">
-        Reports and downloads are built from your private receipts, so this
-        page needs you signed in.
+        Reports and downloads are built from your private receipts, so this page
+        needs you signed in.
       </p>
 
       <div className="mt-6 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">

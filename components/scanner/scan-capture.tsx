@@ -13,7 +13,6 @@
  * tokens, lucide icons, and CSS animations to match the rest of the app.
  */
 
-import * as React from "react"
 import {
   CameraIcon,
   CheckIcon,
@@ -24,6 +23,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react"
+import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -210,6 +210,7 @@ export function ScanCapture({
           disabled={disabled}
         />
       ) : (
+        // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is a shortcut; the buttons inside are the keyboard path.
         <div
           onDragOver={(event) => {
             event.preventDefault()
@@ -242,14 +243,14 @@ export function ScanCapture({
             )}
           </span>
 
-          <p className="mt-4 text-sm font-medium">
+          <p className="mt-4 font-medium text-sm">
             {phase === "compressing"
               ? "Compressing photo"
               : phase === "uploading"
                 ? "Uploading photo"
                 : "Add a receipt photo"}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-muted-foreground text-xs">
             {phase === "compressing"
               ? "Shrinking it on this device before it uploads."
               : phase === "uploading"
@@ -285,7 +286,7 @@ export function ScanCapture({
       )}
 
       {error && (
-        <p className="flex items-start gap-1.5 text-xs text-destructive">
+        <p className="flex items-start gap-1.5 text-destructive text-xs">
           <TriangleAlertIcon className="mt-px size-3 shrink-0" />
           {error}
         </p>
@@ -362,7 +363,7 @@ function CapturedPreview({
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       <div className="flex items-start gap-3 p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a local blob
+        {/* biome-ignore lint/performance/noImgElement: a local blob
             URL, so next/image has nothing to optimise and would only
             round-trip it through the optimiser. */}
         <img
@@ -372,9 +373,9 @@ function CapturedPreview({
         />
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{image.fileName}</p>
+          <p className="truncate font-medium text-sm">{image.fileName}</p>
 
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1.5 text-muted-foreground text-xs">
             <CheckIcon className="size-3 text-primary" />
             <span className="tabular-nums">
               {formatBytes(image.originalBytes)} → {formatBytes(image.bytes)}
@@ -386,7 +387,7 @@ function CapturedPreview({
             )}
           </p>
 
-          <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+          <p className="mt-0.5 text-muted-foreground text-xs tabular-nums">
             {image.width} × {image.height}
           </p>
         </div>

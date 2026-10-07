@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import { ImageIcon, ImageOffIcon, Loader2Icon } from "lucide-react"
+import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -88,19 +88,19 @@ function ReceiptPhoto({ receipt }: { receipt: ReceiptPhotoSubject }) {
   return (
     <div className="relative grid min-h-40 place-items-center overflow-hidden rounded-lg border bg-muted">
       {status === "error" ? (
-        <p className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
+        <p className="flex flex-col items-center gap-2 p-6 text-center text-muted-foreground text-sm">
           <ImageOffIcon className="size-5" />
           That photo could not be loaded.
         </p>
       ) : (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element -- served from
+          {/* biome-ignore lint/performance/noImgElement: served from
               a private, no-cache route, so it must not go through the Next
               image optimiser: that would copy private receipt bytes into a
               public CDN cache, reachable without the signed-in session. */}
           <img
             src={`/api/receipts/${receipt.id}/image`}
-            alt={`Photo of the receipt from ${receipt.merchant}`}
+            alt={`Receipt from ${receipt.merchant}`}
             decoding="async"
             onLoad={() => setStatus("ready")}
             onError={() => setStatus("error")}

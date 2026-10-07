@@ -1,9 +1,9 @@
 import type { ReceiptSearchParams } from "@/lib/dal/receipts"
 import type { ReceiptTypeId } from "@/lib/receipt-types"
 import {
-  searchParamsSchema,
   type ReceiptSort,
   type SearchScope,
+  searchParamsSchema,
 } from "@/lib/schemas"
 
 // The search page keeps all of its state in the URL, so a search can be
@@ -93,7 +93,11 @@ export function searchPageHref(params: ReceiptSearchParams): string {
 // The /documents page (reports and downloads) for the same filters. Sort and
 // page do not apply there: a report covers every match, oldest first.
 export function documentsHref(params: ReceiptSearchParams): string {
-  const query = searchQueryString({ ...params, sort: undefined, page: undefined })
+  const query = searchQueryString({
+    ...params,
+    sort: undefined,
+    page: undefined,
+  })
   return query ? `/documents?${query}` : "/documents"
 }
 

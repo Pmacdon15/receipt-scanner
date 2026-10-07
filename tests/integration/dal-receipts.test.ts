@@ -7,10 +7,6 @@ import {
   spyOn,
   test,
 } from "bun:test"
-
-import { fake, resetFakes, signIn } from "../helpers/server-mocks"
-import { createTestDb, type TestDb } from "../helpers/test-db"
-
 import {
   createReceipt,
   getReceipt,
@@ -18,15 +14,17 @@ import {
   getReceipts,
   getReceiptTotals,
   InvalidInputError,
+  type NewReceipt,
   removeReceipt,
   searchReceipts,
   searchReceiptsWithSuggestions,
   setReceiptType,
   suggestReceiptType,
   UnauthorizedError,
-  type NewReceipt,
 } from "@/lib/dal/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
+import { fake, resetFakes, signIn } from "../helpers/server-mocks"
+import { createTestDb, type TestDb } from "../helpers/test-db"
 
 let testDb: TestDb
 

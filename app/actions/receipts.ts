@@ -12,18 +12,18 @@ import {
   suggestReceiptType,
   UnauthorizedError,
 } from "@/lib/dal/receipts"
+import { extractReceiptFieldsSafely } from "@/lib/extract-receipt"
+import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 import {
   fieldErrorsFrom,
   firstErrorMessage,
   receiptIdSchema,
+  type ScanReceiptField,
   scanReceiptFormSchema,
   setReceiptSplitsInputSchema,
   setReceiptTypeInputSchema,
   suggestReceiptTypeInputSchema,
-  type ScanReceiptField,
 } from "@/lib/schemas"
-import { extractReceiptFieldsSafely } from "@/lib/extract-receipt"
-import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 
 export type ScanFormState = {
   status: "idle" | "success" | "error"
