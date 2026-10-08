@@ -39,22 +39,21 @@ export function ReportSkeleton() {
   )
 }
 
-/** Whole-page fallback while we find out whether the viewer is signed in. */
-export function DocumentsSkeleton() {
+/**
+ * Fallback under the heading while we find out whether the viewer is signed
+ * in. Same spacing as DocumentsBody so nothing jumps when it resolves.
+ */
+export function DocumentsBodySkeleton() {
   return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label="Loading documents"
-      className="flex flex-col gap-6"
-    >
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-9 w-48" />
+    <div role="status" aria-busy="true" aria-label="Loading documents">
+      <div className="mt-2 print:hidden">
         <SummarySkeleton />
       </div>
-      <FiltersSkeleton />
-      <DownloadsSkeleton />
-      <ReportSkeleton />
+      <div className="mt-6 flex flex-col gap-6">
+        <FiltersSkeleton />
+        <DownloadsSkeleton />
+        <ReportSkeleton />
+      </div>
     </div>
   )
 }
