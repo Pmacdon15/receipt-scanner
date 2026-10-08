@@ -18,8 +18,8 @@ function subscribe(onChange: () => void) {
 function useReturnUrl() {
   const pathname = usePathname()
   // Read the query straight off the URL (re-read on every render, so client
-  // navigations pick it up). useSearchParams would force a Suspense boundary
-  // around the header, which lives in the root layout.
+  // navigations pick it up) rather than useSearchParams, to keep the URL
+  // reads to this one small component.
   const search = React.useSyncExternalStore(
     subscribe,
     () => window.location.search,
@@ -33,7 +33,27 @@ function useReturnUrl() {
 type SignInProps = React.ComponentProps<typeof SignInButton>
 type SignUpProps = React.ComponentProps<typeof SignUpButton>
 
+// usePathname() is URL data, so with Cache Components it must sit under
+// Suspense. Each button owns that boundary; the fallback is the same Clerk
+// button without a return URL (Clerk's env fallback applies until it resolves).
+
 export function ReturnSignInButton(props: SignInProps) {
+  return (
+    <React.Suspense fallback={<SignInButton mode="modal" {...props} />}>
+      <SignInWithReturn {...props} />
+    </React.Suspense>
+  )
+}
+
+export function ReturnSignUpButton(props: SignUpProps) {
+  return (
+    <React.Suspense fallback={<SignUpButton mode="modal" {...props} />}>
+      <SignUpWithReturn {...props} />
+    </React.Suspense>
+  )
+}
+
+function SignInWithReturn(props: SignInProps) {
   const returnUrl = useReturnUrl()
   return (
     <SignInButton
@@ -45,7 +65,7 @@ export function ReturnSignInButton(props: SignInProps) {
   )
 }
 
-export function ReturnSignUpButton(props: SignUpProps) {
+function SignUpWithReturn(props: SignUpProps) {
   const returnUrl = useReturnUrl()
   return (
     <SignUpButton
