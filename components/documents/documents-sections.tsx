@@ -75,7 +75,9 @@ export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
 
       <div className="mt-6 flex flex-col gap-6">
         <Suspense fallback={<FiltersSkeleton />}>
-          {data.then((d) => <PeriodFilters params={d.params} org={d.org} />)}
+          {data.then((d) => (
+            <PeriodFilters params={d.params} org={d.org} />
+          ))}
         </Suspense>
 
         <Suspense fallback={null}>
