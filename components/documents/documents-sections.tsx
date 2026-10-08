@@ -15,7 +15,7 @@ import { DownloadPanel } from "@/components/documents/download-panel"
 import { PeriodFilters } from "@/components/documents/period-filters"
 import { ReportView } from "@/components/documents/report-view"
 import { Button } from "@/components/ui/button"
-import type { ReceiptExport } from "@/lib/dal/receipts"
+import { getReceiptExport, type ReceiptExport } from "@/lib/dal/receipts"
 import { EXPORT_LIMIT } from "@/lib/db/receipts"
 import { periodPresets } from "@/lib/documents/periods"
 import { ARCHIVE_PHOTO_LIMIT } from "@/lib/documents/receipt-archive"
@@ -24,11 +24,32 @@ import {
   describePeriod,
   formatCurrencyTotals,
 } from "@/lib/documents/report"
-import { searchQueryString } from "@/lib/search-params"
+import {
+  parseSearchParams,
+  type RawSearchParams,
+  searchQueryString,
+} from "@/lib/search-params"
 
 // The request-time parts of /documents. Nothing here is async and nothing
 // awaits: each region resolves the promise it needs inline with .then()
 // inside its own <Suspense>, so only that region waits.
+
+/**
+ * Signed in: start the export query and render the body. Signed out: the
+ * prompt, and the query never runs.
+ */
+export function DocumentsGate({
+  userId,
+  searchParams,
+}: {
+  userId: string | null
+  searchParams: Promise<RawSearchParams>
+}) {
+  if (!userId) return <SignedOutPrompt />
+
+  const data = searchParams.then(parseSearchParams).then(getReceiptExport)
+  return <DocumentsBody data={data} />
+}
 
 /** Everything below the heading for a signed-in viewer. */
 export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
@@ -36,15 +57,16 @@ export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
   const scopeLabel = data.then((d) =>
     d.scope === "org" && d.org ? d.org.name : "My receipts"
   )
+  const all = Promise.all([data, report, scopeLabel])
 
   return (
     <>
       <div className="mt-2 print:hidden">
         <Suspense fallback={<SummarySkeleton />}>
-          {Promise.all([data, report, scopeLabel]).then(([d, r, label]) => (
+          {all.then(([{ params }, r, label]) => (
             <p className="text-pretty text-muted-foreground">
               {label} ·{" "}
-              {describePeriod(d.params.purchasedFrom, d.params.purchasedTo)} ·{" "}
+              {describePeriod(params.purchasedFrom, params.purchasedTo)} ·{" "}
               {r.receiptCount} receipt{r.receiptCount === 1 ? "" : "s"}{" "}
               totalling {formatCurrencyTotals(r)}
             </p>
@@ -80,7 +102,7 @@ export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
         </Suspense>
 
         <Suspense fallback={<ReportSkeleton />}>
-          {Promise.all([data, report, scopeLabel]).then(([d, r, label]) => (
+          {all.then(([d, r, label]) => (
             <ReportView
               report={r}
               receipts={d.receipts}

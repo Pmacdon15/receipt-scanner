@@ -2,14 +2,9 @@ import { auth } from "@clerk/nextjs/server"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 
-import {
-  DocumentsBody,
-  SignedOutPrompt,
-} from "@/components/documents/documents-sections"
+import { DocumentsGate } from "@/components/documents/documents-sections"
 import { DocumentsBodySkeleton } from "@/components/documents/documents-skeleton"
-import { getReceiptExport } from "@/lib/dal/receipts"
 import type { RawSearchParams } from "@/lib/search-params"
-import { parseSearchParams } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Documents",
@@ -33,19 +28,9 @@ export default function DocumentsPage({
       </h1>
 
       <Suspense fallback={<DocumentsBodySkeleton />}>
-        {auth().then(({ userId }) =>
-          userId ? (
-            // Started only once we know the viewer is signed in, so a
-            // signed-out visit never runs the query.
-            <DocumentsBody
-              data={searchParams
-                .then(parseSearchParams)
-                .then(getReceiptExport)}
-            />
-          ) : (
-            <SignedOutPrompt />
-          )
-        )}
+        {auth().then(({ userId }) => (
+          <DocumentsGate userId={userId} searchParams={searchParams} />
+        ))}
       </Suspense>
     </div>
   )
