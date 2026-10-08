@@ -14,7 +14,8 @@ describe("PeriodPresets", () => {
     const thisMonth = presets.find((p) => p.id === "this-month")
     const view = render(<PeriodPresets params={{ scope: "mine" }} />)
 
-    const link = view.getByRole("link", { name: "This month" })
+    // Base UI gives a Button rendered as a link role="button".
+    const link = view.getByRole("button", { name: "This month" })
     expect(link.getAttribute("href")).toBe(
       documentsHref({
         scope: "mine",
@@ -39,7 +40,7 @@ describe("PeriodPresets", () => {
     )
 
     const current = (name: string) =>
-      view.getByRole("link", { name }).getAttribute("aria-current")
+      view.getByRole("button", { name }).getAttribute("aria-current")
     expect(current("This year")).toBe("true")
     expect(current("All dates")).toBeNull()
   })
