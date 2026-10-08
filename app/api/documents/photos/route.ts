@@ -13,6 +13,7 @@
  * Errors are JSON, so the page can show them instead of saving them.
  */
 
+import { unstable_rethrow } from "next/navigation"
 import type { NextRequest } from "next/server"
 
 import { getReceiptExport, UnauthorizedError } from "@/lib/dal/receipts"
@@ -31,11 +32,17 @@ import {
 const PRIVATE = { "Cache-Control": "private, no-store" }
 
 export async function GET(request: NextRequest) {
+  // Read the request before the try: with Cache Components, touching
+  // request.url during prerender throws to bail out, and that must not be
+  // caught and logged as a failure below.
+  const params = exportParamsFrom(request)
+  const organize = parseOrganize(queryValue(request, "organize"))
+
   try {
-    const data = await getReceiptExport(exportParamsFrom(request))
+    const data = await getReceiptExport(params)
     const meta = reportMeta(data, new Date())
     const manifest = buildArchiveManifest(data.receipts, {
-      organize: parseOrganize(queryValue(request, "organize")),
+      organize,
       scopeLabel: meta.scopeLabel,
       from: meta.from,
       to: meta.to,
@@ -54,6 +61,7 @@ export async function GET(request: NextRequest) {
 
     return Response.json(manifest, { headers: PRIVATE })
   } catch (error) {
+    unstable_rethrow(error)
     if (error instanceof UnauthorizedError) {
       return Response.json(
         { error: "Your session has ended. Sign in again to download." },

@@ -1,6 +1,4 @@
-import { Show, SignUpButton } from "@clerk/nextjs"
 import {
-  ArrowRightIcon,
   CameraIcon,
   CheckIcon,
   ImageIcon,
@@ -12,11 +10,12 @@ import {
   WalletMinimalIcon,
 } from "lucide-react"
 import Link from "next/link"
-import type { ReactNode } from "react"
+import { type ReactNode, Suspense } from "react"
 
 import { CategoryRail } from "@/components/home/category-rail"
 import { CtaSphere } from "@/components/home/cta-sphere"
 import { HeroBackdrop } from "@/components/home/hero-backdrop"
+import { PrimaryCta, PrimaryCtaSkeleton } from "@/components/home/primary-cta"
 import { ScanHeroVisual } from "@/components/home/scan-hero-visual"
 import { Button } from "@/components/ui/button"
 import { RECEIPT_TYPES } from "@/lib/receipt-types"
@@ -45,33 +44,6 @@ const steps = [
       "It lands in your list, totalled and searchable, with the original photo one tap away.",
   },
 ]
-
-function PrimaryCta({ className }: { className?: string }) {
-  return (
-    <>
-      <Show when="signed-in">
-        <Button
-          size="lg"
-          className={cn("h-11 px-5 text-base", className)}
-          nativeButton={false}
-          render={<Link href="/scan" />}
-        >
-          Scan a receipt
-          <ArrowRightIcon data-icon="inline-end" />
-        </Button>
-      </Show>
-
-      <Show when="signed-out">
-        <SignUpButton mode="modal">
-          <Button size="lg" className={cn("h-11 px-5 text-base", className)}>
-            Start free
-            <ArrowRightIcon data-icon="inline-end" />
-          </Button>
-        </SignUpButton>
-      </Show>
-    </>
-  )
-}
 
 function SectionHeading({
   eyebrow,
@@ -118,7 +90,11 @@ export default function HomePage() {
               </p>
 
               <div className="flex w-full animate-home-rise flex-col gap-3 [animation-delay:240ms] sm:w-auto sm:flex-row">
-                <PrimaryCta className="w-full sm:w-auto" />
+                <Suspense
+                  fallback={<PrimaryCtaSkeleton className="w-full sm:w-auto" />}
+                >
+                  <PrimaryCta className="w-full sm:w-auto" />
+                </Suspense>
                 <Button
                   size="lg"
                   variant="outline"
@@ -363,7 +339,9 @@ export default function HomePage() {
             <p className="text-pretty text-muted-foreground">
               Start with one receipt and see the whole flow in under a minute.
             </p>
-            <PrimaryCta />
+            <Suspense fallback={<PrimaryCtaSkeleton />}>
+              <PrimaryCta />
+            </Suspense>
           </div>
         </div>
       </section>

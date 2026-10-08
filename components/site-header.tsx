@@ -23,9 +23,50 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { site } from "@/lib/site"
 import { cn } from "@/lib/utils"
 
+type ButtonProps = React.ComponentProps<typeof Button>
+
+type NavButtonProps = Omit<ButtonProps, "render" | "nativeButton"> & {
+  href: string
+  activeClassName: string
+}
+
+/**
+ * A nav link that highlights itself on the current page. usePathname() is URL
+ * data, so with Cache Components only this link waits on it: the header stays
+ * in the static shell and the fallback is the same link, not highlighted.
+ */
+function NavButton(props: NavButtonProps) {
+  return (
+    <React.Suspense fallback={<NavLinkButton {...props} active={false} />}>
+      <CurrentNavButton {...props} />
+    </React.Suspense>
+  )
+}
+
+function CurrentNavButton(props: NavButtonProps) {
+  const active = usePathname() === props.href
+  return <NavLinkButton {...props} active={active} />
+}
+
+function NavLinkButton({
+  href,
+  activeClassName,
+  active,
+  className,
+  ...props
+}: NavButtonProps & { active: boolean }) {
+  return (
+    <Button
+      {...props}
+      className={cn(className, active && activeClassName)}
+      nativeButton={false}
+      render={<Link href={href} />}
+    />
+  )
+}
+
 export function SiteHeader() {
   const [open, setOpen] = React.useState(false)
-  const pathname = usePathname()
   const { isLoaded, isSignedIn } = useAuth()
 
   return (
@@ -40,19 +81,16 @@ export function SiteHeader() {
 
         <nav className="ml-4 hidden items-center gap-1 md:flex">
           {site.nav.map((item) => (
-            <Button
+            <NavButton
               key={item.href}
+              href={item.href}
               variant="ghost"
               size="sm"
-              className={cn(
-                "text-muted-foreground",
-                pathname === item.href && "bg-muted text-foreground"
-              )}
-              nativeButton={false}
-              render={<Link href={item.href} />}
+              className="text-muted-foreground"
+              activeClassName="bg-muted text-foreground"
             >
               {item.label}
-            </Button>
+            </NavButton>
           ))}
         </nav>
 
@@ -98,19 +136,16 @@ export function SiteHeader() {
 
               <nav className="flex flex-col gap-1 px-4">
                 {site.nav.map((item) => (
-                  <Button
+                  <NavButton
                     key={item.href}
+                    href={item.href}
                     variant="ghost"
-                    className={cn(
-                      "justify-start",
-                      pathname === item.href && "bg-muted"
-                    )}
+                    className="justify-start"
+                    activeClassName="bg-muted"
                     onClick={() => setOpen(false)}
-                    nativeButton={false}
-                    render={<Link href={item.href} />}
                   >
                     {item.label}
-                  </Button>
+                  </NavButton>
                 ))}
               </nav>
 
