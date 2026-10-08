@@ -13,9 +13,9 @@ export function SignedOutPrompt() {
         <LockIcon className="size-5" />
       </span>
 
-      <h1 className="mt-5 font-semibold text-2xl tracking-tight">
+      <h2 className="mt-5 font-semibold text-2xl tracking-tight">
         Sign in to search receipts
-      </h1>
+      </h2>
       <p className="mt-2 text-pretty text-muted-foreground">
         Receipts are private to your account and your organization, so search
         needs you signed in.

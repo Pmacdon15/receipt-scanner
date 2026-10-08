@@ -11,10 +11,11 @@ export const metadata: Metadata = {
   description: "Find receipts by type, merchant, date, or amount.",
 }
 
-// Deliberately not async: the page starts the load and hands the promise to
-// the client, which unwraps it with use() under Suspense. The shell streams
-// immediately, and navigations inside a transition keep the current results
-// on screen (plus any optimistic ones) instead of falling back to the skeleton.
+// Cache Components (#17): not async, no await. The page starts the load and
+// hands the promise to the client, which unwraps it with use() under Suspense.
+// The frame and heading are in the static shell, and navigations inside a
+// transition keep the current results on screen (plus any optimistic ones)
+// instead of falling back to the skeleton.
 export default function SearchPage({
   searchParams,
 }: {
@@ -24,6 +25,8 @@ export default function SearchPage({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+      <h1 className="font-semibold text-3xl tracking-tight">Search receipts</h1>
+
       <Suspense fallback={<SearchSkeleton />}>
         <ReceiptSearch data={data} />
       </Suspense>

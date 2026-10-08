@@ -266,15 +266,10 @@ function SearchWorkspace({
 
   return (
     <SearchNavContext value={nav}>
-      <header className="flex flex-col gap-2">
-        <h1 className="font-semibold text-3xl tracking-tight">
-          Search receipts
-        </h1>
-        <p className="text-pretty text-muted-foreground">
-          Filter by type, merchant, date, or amount
-          {shown.org ? `, across your receipts or ${shown.org.name}'s` : ""}.
-        </p>
-      </header>
+      <p className="mt-2 text-pretty text-muted-foreground">
+        Filter by type, merchant, date, or amount
+        {shown.org ? `, across your receipts or ${shown.org.name}'s` : ""}.
+      </p>
 
       <ScopeTabs results={shown} current={current} />
 
