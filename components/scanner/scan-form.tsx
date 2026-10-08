@@ -488,7 +488,7 @@ export function ScanForm() {
             <FieldError message={state.fieldErrors.rawText} />
           </div>
 
-          <div className="grid gap-2">
+          <div className="mb-6 grid gap-2">
             <Label htmlFor="notes">Notes</Label>
             <Input
               id="notes"
