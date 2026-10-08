@@ -1,11 +1,11 @@
 import { XIcon } from "lucide-react"
 import Link from "next/link"
 
+import { PeriodPresets } from "@/components/documents/period-presets"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ReceiptSearchParams } from "@/lib/dal/receipts"
-import { matchingPreset, type PeriodPreset } from "@/lib/documents/periods"
 import { formatMoney } from "@/lib/money"
 import { receiptTypeLabel } from "@/lib/receipt-types"
 import { documentsHref } from "@/lib/search-params"
@@ -17,18 +17,11 @@ import { cn } from "@/lib/utils"
  */
 export function PeriodFilters({
   params,
-  presets,
   org,
 }: {
   params: ReceiptSearchParams
-  presets: PeriodPreset[]
   org: { id: string; name: string } | null
 }) {
-  const active = matchingPreset(
-    presets,
-    params.purchasedFrom,
-    params.purchasedTo
-  )
   const extra = extraFilters(params)
 
   return (
@@ -62,32 +55,7 @@ export function PeriodFilters({
         </div>
       )}
 
-      <ul className="flex flex-wrap gap-1.5" aria-label="Quick date ranges">
-        {presets.map((preset) => {
-          const selected = active?.id === preset.id
-          return (
-            <li key={preset.id}>
-              <Button
-                size="sm"
-                variant={selected ? "default" : "outline"}
-                aria-current={selected ? "true" : undefined}
-                nativeButton={false}
-                render={
-                  <Link
-                    href={documentsHref({
-                      ...params,
-                      purchasedFrom: preset.from,
-                      purchasedTo: preset.to,
-                    })}
-                  />
-                }
-              >
-                {preset.label}
-              </Button>
-            </li>
-          )
-        })}
-      </ul>
+      <PeriodPresets params={params} />
 
       <form
         action="/documents"

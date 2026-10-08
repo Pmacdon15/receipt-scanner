@@ -16,6 +16,7 @@ import {
   queryValue,
   reportMeta,
   responseBody,
+  timeZoneFrom,
 } from "@/lib/documents/export-request"
 import {
   archivePhotoPaths,
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     : undefined
   const xlsx = buildReportXlsx(
     data.receipts,
-    reportMeta(data, new Date()),
+    reportMeta(data, new Date(), timeZoneFrom(request)),
     photoPaths
   )
 

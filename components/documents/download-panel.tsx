@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { useBrowserTimeZone } from "@/hooks/use-browser-clock"
 import {
   DownloadError,
   downloadFile,
@@ -68,8 +69,12 @@ export function DownloadPanel({
   // Stop fetching photos if the user leaves the page mid-download.
   React.useEffect(() => () => abortRef.current?.abort(), [])
 
+  // The files say which day they were made; that day is the viewer's (#22).
+  const timeZone = useBrowserTimeZone()
+
   const href = (kind: string, extra: Record<string, string> = {}) => {
     const qs = new URLSearchParams(query)
+    if (timeZone) qs.set("tz", timeZone)
     for (const [key, value] of Object.entries(extra)) qs.set(key, value)
     const s = qs.toString()
     return `/api/documents/${kind}${s ? `?${s}` : ""}`

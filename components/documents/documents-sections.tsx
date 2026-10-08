@@ -17,7 +17,6 @@ import { ReportView } from "@/components/documents/report-view"
 import { Button } from "@/components/ui/button"
 import { getReceiptExport, type ReceiptExport } from "@/lib/dal/receipts"
 import { EXPORT_LIMIT } from "@/lib/db/receipts"
-import { periodPresets } from "@/lib/documents/periods"
 import { ARCHIVE_PHOTO_LIMIT } from "@/lib/documents/receipt-archive"
 import {
   buildReport,
@@ -77,12 +76,7 @@ export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
       <div className="mt-6 flex flex-col gap-6">
         <Suspense fallback={<FiltersSkeleton />}>
           {data.then((d) => (
-            <PeriodFilters
-              params={d.params}
-              // Server UTC date; doesn't follow the user's timezone yet (#22).
-              presets={periodPresets(new Date().toISOString().slice(0, 10))}
-              org={d.org}
-            />
+            <PeriodFilters params={d.params} org={d.org} />
           ))}
         </Suspense>
 

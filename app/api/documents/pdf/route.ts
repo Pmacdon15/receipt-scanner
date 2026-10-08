@@ -16,6 +16,7 @@ import {
   queryValue,
   reportMeta,
   responseBody,
+  timeZoneFrom,
 } from "@/lib/documents/export-request"
 import { buildReportPdf } from "@/lib/documents/report-pdf"
 
@@ -24,7 +25,10 @@ export async function GET(request: NextRequest) {
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
   const data = await getReceiptExport(exportParamsFrom(request))
-  const pdf = await buildReportPdf(data.receipts, reportMeta(data, new Date()))
+  const pdf = await buildReportPdf(
+    data.receipts,
+    reportMeta(data, new Date(), timeZoneFrom(request))
+  )
 
   return new Response(responseBody(pdf), {
     headers: downloadHeaders("application/pdf", exportFileName(data, "pdf"), {

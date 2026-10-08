@@ -1,3 +1,4 @@
+import { dateTimeInZone } from "@/lib/dates"
 import type { ReportReceipt } from "@/lib/documents/report"
 import {
   describePeriod,
@@ -131,6 +132,8 @@ export type ArchiveManifest = {
   to?: string
   /** ISO timestamp. */
   generatedAt: string
+  /** IANA zone the README shows generatedAt in; UTC when unknown. */
+  timeZone?: string
   receiptCount: number
   photos: ArchivePhoto[]
 }
@@ -143,6 +146,7 @@ export function buildArchiveManifest(
     from,
     to,
     generatedAt,
+    timeZone = "UTC",
     fileName,
   }: {
     organize: ArchiveOrganize
@@ -150,6 +154,7 @@ export function buildArchiveManifest(
     from?: string
     to?: string
     generatedAt: Date
+    timeZone?: string
     fileName: string
   }
 ): ArchiveManifest {
@@ -162,6 +167,7 @@ export function buildArchiveManifest(
     from,
     to,
     generatedAt: generatedAt.toISOString(),
+    timeZone,
     receiptCount: receipts.length,
     photos: receipts.flatMap((r) => {
       const path = paths.get(r.id)
@@ -296,6 +302,7 @@ export function archiveReadme(
   const withPhoto = manifest.photos.length
   const included = withPhoto - missing.length - skipped.length
   const withoutPhoto = manifest.receiptCount - withPhoto
+  const timeZone = manifest.timeZone ?? "UTC"
   const organized =
     manifest.organize === "month"
       ? "Photos are filed in a folder per month."
@@ -309,7 +316,7 @@ export function archiveReadme(
     "",
     `Covering: ${manifest.scopeLabel}`,
     `Period:   ${describePeriod(manifest.from, manifest.to)}`,
-    `Created:  ${manifest.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
+    `Created:  ${dateTimeInZone(new Date(manifest.generatedAt), timeZone)} ${timeZone}`,
     "",
     `${manifest.receiptCount} receipt${manifest.receiptCount === 1 ? "" : "s"}, ${included} photo${included === 1 ? "" : "s"} included.`,
     organized,
