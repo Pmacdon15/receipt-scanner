@@ -28,7 +28,9 @@ export default function ScanPage() {
       </header>
 
       <Suspense fallback={<ScanBodySkeleton />}>
-        {auth().then(({ userId }) => <ScanGate userId={userId} />)}
+        {auth().then(({ userId }) => (
+          <ScanGate userId={userId} />
+        ))}
       </Suspense>
     </div>
   )

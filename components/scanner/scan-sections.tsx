@@ -63,7 +63,9 @@ export function ScanGate({ userId }: { userId: string | null }) {
           </div>
 
           <Suspense fallback={<ReceiptListSkeleton />}>
-            {receipts.then((r) => <ReceiptList receipts={r} />)}
+            {receipts.then((r) => (
+              <ReceiptList receipts={r} />
+            ))}
           </Suspense>
         </section>
       </div>
