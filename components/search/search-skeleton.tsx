@@ -3,8 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 export function SearchSkeleton() {
   return (
     <div role="status" aria-busy="true" aria-label="Loading search">
-      <Skeleton className="h-9 w-64" />
-      <Skeleton className="mt-3 h-5 w-80 max-w-full" />
+      <Skeleton className="mt-2 h-5 w-80 max-w-full" />
       <Skeleton className="mt-6 h-10 w-full" />
 
       <div className="mt-6 grid items-start gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
