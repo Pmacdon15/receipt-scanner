@@ -6,6 +6,7 @@ import {
   deleteReceipt,
   insertReceipt,
   type ReceiptListRow,
+  type ReceiptOwner,
   type ReceiptScope,
   type ReceiptTotals,
   type ReceiptTypeFacet,
@@ -283,9 +284,13 @@ export async function setReceiptSplits(
   )
 }
 
-export async function removeReceipt(id: string): Promise<boolean> {
+/**
+ * Deletes the signed-in user's receipt. Returns whose it was, for expiring the
+ * cache, or null when it is not theirs (or does not exist).
+ */
+export async function removeReceipt(id: string): Promise<ReceiptOwner | null> {
   const userId = await requireUserId()
-  if (!receiptIdSchema.safeParse(id).success) return false
+  if (!receiptIdSchema.safeParse(id).success) return null
   return deleteReceipt(userId, id)
 }
 
