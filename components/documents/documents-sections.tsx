@@ -17,7 +17,6 @@ import { ReportView } from "@/components/documents/report-view"
 import { Button } from "@/components/ui/button"
 import { getReceiptExport, type ReceiptExport } from "@/lib/dal/receipts"
 import { EXPORT_LIMIT } from "@/lib/db/receipts"
-import { periodPresets } from "@/lib/documents/periods"
 import { ARCHIVE_PHOTO_LIMIT } from "@/lib/documents/receipt-archive"
 import {
   buildReport,
@@ -79,8 +78,6 @@ export function DocumentsBody({ data }: { data: Promise<ReceiptExport> }) {
           {data.then((d) => (
             <PeriodFilters
               params={d.params}
-              // Server UTC date; doesn't follow the user's timezone yet (#22).
-              presets={periodPresets(new Date().toISOString().slice(0, 10))}
               org={d.org}
             />
           ))}

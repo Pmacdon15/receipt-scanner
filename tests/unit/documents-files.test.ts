@@ -125,6 +125,19 @@ describe("xlsx", () => {
     expect(sheet).toContain("<f>SUM(G2:G3)</f><v>102.17</v>")
     expect(sheet).toContain('<autoFilter ref="A1:L3"/>')
   })
+
+  test("the summary shows when it was generated in the viewer's timezone (#22)", () => {
+    const files = readZip(
+      buildReportXlsx([], {
+        scopeLabel: "Personal receipts",
+        generatedAt: new Date("2026-10-01T00:30:00Z"),
+        timeZone: "America/Edmonton",
+      })
+    )
+    expect(text(files.get("xl/worksheets/sheet1.xml"))).toContain(
+      "2026-09-30 18:30 America/Edmonton"
+    )
+  })
 })
 
 describe("pdf", () => {
@@ -379,5 +392,26 @@ describe("receipt archive", () => {
     expect(readme).toContain("0 photos included")
     expect(readme).toContain("did not fit in one archive")
     expect(readme).toContain("Big")
+  })
+
+  test("the README shows when it was made in the viewer's timezone (#22)", () => {
+    const manifest = buildArchiveManifest([], {
+      organize: "none",
+      scopeLabel: "Personal receipts",
+      generatedAt: new Date("2026-10-01T00:30:00Z"),
+      timeZone: "America/Edmonton",
+      fileName: "x.zip",
+    })
+    expect(archiveReadme(manifest)).toContain(
+      "Created:  2026-09-30 18:30 America/Edmonton"
+    )
+
+    const utc = buildArchiveManifest([], {
+      organize: "none",
+      scopeLabel: "Personal receipts",
+      generatedAt: new Date("2026-10-01T00:30:00Z"),
+      fileName: "x.zip",
+    })
+    expect(archiveReadme(utc)).toContain("Created:  2026-10-01 00:30 UTC")
   })
 })

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 
 import type { ReceiptExport, ReceiptSearchParams } from "@/lib/dal/receipts"
+import { resolveTimeZone } from "@/lib/dates"
 import { exportBaseName } from "@/lib/documents/report"
 import type { ReportMeta } from "@/lib/documents/report-xlsx"
 import { parseSearchParams, rawSearchParamsFrom } from "@/lib/search-params"
@@ -19,13 +20,27 @@ export function queryValue(request: NextRequest, name: string): string | null {
   return new URL(request.url).searchParams.get(name)
 }
 
-export function reportMeta(data: ReceiptExport, generatedAt: Date): ReportMeta {
+/**
+ * The viewer's timezone, sent by the download panel as `?tz=`. The server's
+ * clock is a fine source for when a file was made, but which *day* that was
+ * depends on where the viewer is (#22). UTC when missing or invalid.
+ */
+export function timeZoneFrom(request: NextRequest): string {
+  return resolveTimeZone(queryValue(request, "tz"))
+}
+
+export function reportMeta(
+  data: ReceiptExport,
+  generatedAt: Date,
+  timeZone = "UTC"
+): ReportMeta {
   return {
     scopeLabel:
       data.scope === "org" && data.org ? data.org.name : "Personal receipts",
     from: data.params.purchasedFrom,
     to: data.params.purchasedTo,
     generatedAt,
+    timeZone,
     truncated: data.truncated,
   }
 }

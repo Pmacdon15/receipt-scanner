@@ -22,6 +22,7 @@ import {
   exportParamsFrom,
   queryValue,
   reportMeta,
+  timeZoneFrom,
 } from "@/lib/documents/export-request"
 import {
   ARCHIVE_PHOTO_LIMIT,
@@ -40,13 +41,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const data = await getReceiptExport(params)
-    const meta = reportMeta(data, new Date())
+    const meta = reportMeta(data, new Date(), timeZoneFrom(request))
     const manifest = buildArchiveManifest(data.receipts, {
       organize,
       scopeLabel: meta.scopeLabel,
       from: meta.from,
       to: meta.to,
       generatedAt: meta.generatedAt,
+      timeZone: meta.timeZone,
       fileName: exportFileName(data, "zip"),
     })
 

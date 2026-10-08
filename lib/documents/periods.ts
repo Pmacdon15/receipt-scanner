@@ -1,5 +1,6 @@
 // Quick date ranges for the documents page. Built from a YYYY-MM-DD "today"
-// so they are pure (and testable); the page passes the server's UTC date.
+// so they are pure (and testable). "today" is the viewer's local date, which
+// only the browser knows (components/documents/period-presets.tsx, #22).
 
 export type PeriodPreset = {
   id: string

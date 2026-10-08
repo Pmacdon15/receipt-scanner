@@ -1,3 +1,4 @@
+import { dateTimeInZone } from "@/lib/dates"
 import {
   buildReport,
   categoryLabel,
@@ -14,6 +15,8 @@ export type ReportMeta = {
   from?: string
   to?: string
   generatedAt: Date
+  /** IANA zone to show generatedAt in (the viewer's); UTC when unknown. */
+  timeZone?: string
   /** True when the export hit its receipt limit and is missing some. */
   truncated?: boolean
 }
@@ -49,13 +52,14 @@ function summarySheet(
   meta: ReportMeta
 ): Sheet {
   const report = buildReport(receipts)
+  const timeZone = meta.timeZone ?? "UTC"
   const rows: Cell[][] = [
     [{ value: "Receipt report", style: "title" }],
     [{ value: "Covering", style: "muted" }, meta.scopeLabel],
     [{ value: "Period", style: "muted" }, describePeriod(meta.from, meta.to)],
     [
       { value: "Generated", style: "muted" },
-      `${meta.generatedAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
+      `${dateTimeInZone(meta.generatedAt, timeZone)} ${timeZone}`,
     ],
     [
       { value: "Receipts", style: "muted" },

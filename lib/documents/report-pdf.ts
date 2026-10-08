@@ -6,6 +6,7 @@ import {
   StandardFonts,
 } from "pdf-lib"
 
+import { dateInZone } from "@/lib/dates"
 import {
   buildReport,
   categoryLabel,
@@ -302,7 +303,7 @@ export async function buildReportPdf(
   )
   w.y -= 14
   w.text(
-    `${report.receiptCount} receipt${report.receiptCount === 1 ? "" : "s"}  ·  generated ${formatDate(meta.generatedAt.toISOString())}`,
+    `${report.receiptCount} receipt${report.receiptCount === 1 ? "" : "s"}  ·  generated ${formatDate(dateInZone(meta.generatedAt, meta.timeZone ?? "UTC"))}`,
     MARGIN,
     { size: 9, color: MUTED }
   )
