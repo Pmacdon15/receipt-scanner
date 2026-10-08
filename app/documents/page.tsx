@@ -1,26 +1,32 @@
 import { auth } from "@clerk/nextjs/server"
-import { LockIcon, TriangleAlertIcon } from "lucide-react"
+import { LockIcon } from "lucide-react"
 import type { Metadata } from "next"
+import { Suspense } from "react"
 
 import {
   ReturnSignInButton,
   ReturnSignUpButton,
 } from "@/components/auth/return-auth-buttons"
-import { DownloadPanel } from "@/components/documents/download-panel"
-import { PeriodFilters } from "@/components/documents/period-filters"
-import { ReportView } from "@/components/documents/report-view"
-import { Button } from "@/components/ui/button"
-import { getReceiptExport } from "@/lib/dal/receipts"
-import { EXPORT_LIMIT } from "@/lib/db/receipts"
-import { periodPresets } from "@/lib/documents/periods"
-import { ARCHIVE_PHOTO_LIMIT } from "@/lib/documents/receipt-archive"
 import {
-  buildReport,
-  describePeriod,
-  formatCurrencyTotals,
-} from "@/lib/documents/report"
+  DocumentsDownloads,
+  DocumentsFilters,
+  DocumentsReport,
+  DocumentsSummary,
+  SignedInOnly,
+  TruncationNotice,
+} from "@/components/documents/documents-sections"
+import {
+  DocumentsSkeleton,
+  DownloadsSkeleton,
+  FiltersSkeleton,
+  ReportSkeleton,
+  SummarySkeleton,
+} from "@/components/documents/documents-skeleton"
+import { Button } from "@/components/ui/button"
+import { getReceiptExport, type ReceiptExport } from "@/lib/dal/receipts"
+import { buildReport } from "@/lib/documents/report"
 import type { RawSearchParams } from "@/lib/search-params"
-import { parseSearchParams, searchQueryString } from "@/lib/search-params"
+import { parseSearchParams } from "@/lib/search-params"
 
 export const metadata: Metadata = {
   title: "Documents",
@@ -28,67 +34,74 @@ export const metadata: Metadata = {
     "Totals for any period as a printable PDF, a spreadsheet, or a ZIP of every receipt photo.",
 }
 
-export default async function DocumentsPage({
+// Deliberately not async and no awaits (Cache Components, #17). The page only
+// builds promises with .then() and passes them down; each component that
+// reads one sits in its own Suspense boundary, so the static parts land in
+// the prerendered shell and only the data-dependent pieces stream in.
+export default function DocumentsPage({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>
 }) {
-  const { userId } = await auth()
-  if (!userId) return <SignedOutPrompt />
+  const signedIn = auth().then(({ userId }) => userId !== null)
 
-  const data = await getReceiptExport(parseSearchParams(await searchParams))
-  const report = buildReport(data.receipts)
-  const { params } = data
-
-  const scopeLabel =
-    data.scope === "org" && data.org ? data.org.name : "My receipts"
-  const today = new Date().toISOString().slice(0, 10)
+  // Only load when signed in. Signed out, nothing below the gate renders, so
+  // the data promise is left pending instead of rejecting unobserved.
+  const data: Promise<ReceiptExport> = signedIn.then((ok) =>
+    ok
+      ? searchParams.then(parseSearchParams).then(getReceiptExport)
+      : new Promise<never>(() => {})
+  )
+  const report = data.then((d) => buildReport(d.receipts))
+  const scopeLabel = data.then((d) =>
+    d.scope === "org" && d.org ? d.org.name : "My receipts"
+  )
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 print:max-w-none print:p-0">
-      <header className="flex flex-col gap-2 print:hidden">
-        <h1 className="font-semibold text-3xl tracking-tight">Documents</h1>
-        <p className="text-pretty text-muted-foreground">
-          {scopeLabel} ·{" "}
-          {describePeriod(params.purchasedFrom, params.purchasedTo)} ·{" "}
-          {report.receiptCount} receipt{report.receiptCount === 1 ? "" : "s"}{" "}
-          totalling {formatCurrencyTotals(report)}
-        </p>
-      </header>
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+          <DocumentsSkeleton />
+        </div>
+      }
+    >
+      <SignedInOnly signedIn={signedIn} signedOut={<SignedOutPrompt />}>
+        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 print:max-w-none print:p-0">
+          <header className="flex flex-col gap-2 print:hidden">
+            <h1 className="font-semibold text-3xl tracking-tight">Documents</h1>
+            <Suspense fallback={<SummarySkeleton />}>
+              <DocumentsSummary
+                data={data}
+                report={report}
+                scopeLabel={scopeLabel}
+              />
+            </Suspense>
+          </header>
 
-      <div className="mt-6 flex flex-col gap-6">
-        <PeriodFilters
-          params={params}
-          presets={periodPresets(today)}
-          org={data.org}
-        />
+          <div className="mt-6 flex flex-col gap-6">
+            <Suspense fallback={<FiltersSkeleton />}>
+              <DocumentsFilters data={data} />
+            </Suspense>
 
-        {data.truncated && (
-          <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-amber-900 text-sm dark:text-amber-200 print:hidden">
-            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-            More than {EXPORT_LIMIT.toLocaleString("en-CA")} receipts match, so
-            this shows the first {EXPORT_LIMIT.toLocaleString("en-CA")}. Pick a
-            shorter date range to cover the rest.
-          </p>
-        )}
+            <Suspense fallback={null}>
+              <TruncationNotice data={data} />
+            </Suspense>
 
-        <DownloadPanel
-          query={searchQueryString(params)}
-          receiptCount={report.receiptCount}
-          photoCount={report.withPhotoCount}
-          photoLimit={ARCHIVE_PHOTO_LIMIT}
-        />
+            <Suspense fallback={<DownloadsSkeleton />}>
+              <DocumentsDownloads data={data} report={report} />
+            </Suspense>
 
-        <ReportView
-          report={report}
-          receipts={data.receipts}
-          scopeLabel={scopeLabel}
-          from={params.purchasedFrom}
-          to={params.purchasedTo}
-          showUploader={data.scope === "org"}
-        />
-      </div>
-    </div>
+            <Suspense fallback={<ReportSkeleton />}>
+              <DocumentsReport
+                data={data}
+                report={report}
+                scopeLabel={scopeLabel}
+              />
+            </Suspense>
+          </div>
+        </div>
+      </SignedInOnly>
+    </Suspense>
   )
 }
 
