@@ -7,6 +7,7 @@ import {
   deleteReceipt,
   insertReceipt,
   type ReceiptListRow,
+  type ReceiptOwner,
   type ReceiptScope,
   type ReceiptTotals,
   type ReceiptTypeFacet,
@@ -286,15 +287,10 @@ export async function setReceiptSplits(
   )
 }
 
-export type RemovedReceipt = {
-  id: string
-  userId: string
-  orgId: string | null
-}
-
 /**
- * Deletes one of the caller's receipts and its photo. Returns null when the id
- * is malformed or names nothing the caller owns.
+ * Deletes one of the caller's receipts and its photo. Returns whose it was,
+ * for expiring the cache, or null when the id is malformed or names nothing
+ * the caller owns.
  *
  * The row goes first: once it is gone nothing can serve the photo, so a blob
  * delete that fails only leaves an unreachable file behind (logged for
@@ -302,24 +298,25 @@ export type RemovedReceipt = {
  */
 export async function removeReceipt(
   input: DeleteReceiptInput
-): Promise<RemovedReceipt | null> {
+): Promise<ReceiptOwner | null> {
   const userId = await requireUserId()
   const parsed = deleteReceiptInputSchema.safeParse(input)
   if (!parsed.success) return null
 
-  const row = await deleteReceipt(userId, parsed.data.id)
-  if (!row) return null
+  const deleted = await deleteReceipt(userId, parsed.data.id)
+  if (!deleted) return null
 
+  const { imageUrl, ...owner } = deleted
   // Only ever delete inside the caller's own blob folder, whatever the row says.
-  if (row.image_url && isOwnReceiptImagePathname(row.image_url, userId)) {
+  if (imageUrl && isOwnReceiptImagePathname(imageUrl, userId)) {
     try {
-      await del(row.image_url)
+      await del(imageUrl)
     } catch (error) {
-      console.error("receipt photo delete failed", row.image_url, error)
+      console.error("receipt photo delete failed", imageUrl, error)
     }
   }
 
-  return { id: row.id, userId, orgId: row.org_id }
+  return owner
 }
 
 // Exposed so the scan form can preview a guess before anything is saved.

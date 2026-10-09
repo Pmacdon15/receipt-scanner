@@ -182,6 +182,8 @@ describe("single-receipt operations are scoped to the owner", () => {
     expect(updated).toMatchObject({
       receipt_type: "travel",
       type_source: "user",
+      // Needed to expire the org's cache tag after the change.
+      org_id: null,
     })
   })
 
@@ -191,8 +193,9 @@ describe("single-receipt operations are scoped to the owner", () => {
     expect(await deleteReceipt("user_b", row.id)).toBeNull()
     expect(await deleteReceipt("user_a", row.id)).toEqual({
       id: row.id,
-      org_id: null,
-      image_url: null,
+      userId: "user_a",
+      orgId: null,
+      imageUrl: null,
     })
     expect(await deleteReceipt("user_a", row.id)).toBeNull()
     expect(await selectReceiptById("user_a", row.id)).toBeNull()
@@ -206,8 +209,9 @@ describe("single-receipt operations are scoped to the owner", () => {
 
     expect(await deleteReceipt("user_a", row.id)).toEqual({
       id: row.id,
-      org_id: "org_1",
-      image_url: "receipts/user_a/photo.jpg",
+      userId: "user_a",
+      orgId: "org_1",
+      imageUrl: "receipts/user_a/photo.jpg",
     })
   })
 })
@@ -598,5 +602,34 @@ describe("split receipts", () => {
     const updated = await updateReceiptType("user_a", row.id, "office")
     expect(updated?.receipt_type).toBe("office")
     expect(updated?.splits).toBeNull()
+  })
+})
+
+describe("cache tags", () => {
+  // Every cached read must register the tag the actions expire for that
+  // scope, or a write would never reach it.
+  test("user reads tag the user's collection", async () => {
+    const row = await insertReceipt("user_a", receipt())
+    const user = { kind: "user", userId: "user_a" } as const
+
+    fake.cacheTags.length = 0
+    await selectReceipts("user_a")
+    await selectReceiptTotals("user_a")
+    await searchReceipts(user)
+    await selectMerchantSuggestions(user, "s")
+    expect(new Set(fake.cacheTags)).toEqual(new Set(["receipts:user:user_a"]))
+
+    fake.cacheTags.length = 0
+    await selectReceiptById("user_a", row.id)
+    expect(fake.cacheTags).toEqual([
+      "receipts:user:user_a",
+      `receipt:${row.id}`,
+    ])
+  })
+
+  test("org reads tag the organization's collection", async () => {
+    fake.cacheTags.length = 0
+    await searchReceipts({ kind: "org", orgId: "org_1" })
+    expect(fake.cacheTags).toEqual(["receipts:org:org_1"])
   })
 })

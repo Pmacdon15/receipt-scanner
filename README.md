@@ -69,14 +69,25 @@ page / server action  →  lib/dal/*  →  lib/db/*  →  Neon
 ```
 
 - **`lib/db/*`** — the only place that talks SQL. Each export is one query and
-  takes `userId` as its first argument. No auth logic lives here.
+  takes `userId` (or a scope) as its first argument. No auth logic lives here.
+  Every read is a `"use cache"` function tagged with `cacheTag`; because the
+  ids arrive as arguments and nothing request-specific is read inside, the
+  arguments are the cache key and each user and org gets its own entries.
 - **`lib/dal/*`** — the access layer. It resolves the Clerk user, refuses the
   call when there is no session, maps snake_case rows to camelCase app types,
   and is the only caller of `lib/db`. Reads are wrapped in React `cache()` so a
   render that needs the same data twice hits the database once.
 - **`app/actions/*`** — `"use server"` entry points for forms and buttons. They
-  validate input, call the DAL, revalidate paths, and turn thrown errors into
+  validate input, call the DAL, expire the affected cache tags with
+  `updateTag`, and turn thrown errors into
   serialisable state. Server components call the DAL directly for reads.
+- **Cache tags** are plain strings written where they're used:
+  `receipts:user:<id>`, `receipts:org:<id>` and `receipt:<id>`. Reads in
+  `lib/db` tag themselves with `cacheTag`; Server Actions expire the same
+  strings with `updateTag` (so the action's response already shows the
+  change). A Route Handler that writes receipts must call
+  `revalidateTag(tag, { expire: 0 })` instead, since `updateTag` only works
+  inside a Server Action.
 
 A server component must never import from `lib/db` directly — that would skip
 the auth check in the DAL.

@@ -1,6 +1,23 @@
+import { cacheLife, cacheTag } from "next/cache"
+
 import type { ReceiptTypeId } from "@/lib/receipt-types"
 import type { ReceiptSort, ReceiptSplit } from "@/lib/schemas"
 import { getSql } from "./client"
+
+// Caching (Cache Components): every read below is a "use cache" function and
+// every write is not. The reads take the user id / org id / scope as plain
+// arguments and never call auth() or anything else request-specific, so the
+// arguments are the cache key: each user (and each org) gets their own
+// entries, and the DAL in lib/dal/receipts.ts stays the auth gate that decides
+// which id gets passed in.
+//
+// Tags (the actions in app/actions/receipts.ts expire the same strings with
+// updateTag after a write, so keep the two in step):
+//   receipts:user:<userId>  everything one person saved ("mine" scope)
+//   receipts:org:<orgId>    everything saved into one organization ("org" scope)
+//   receipt:<id>            reads of one receipt (its photo pathname)
+// cacheLife("hours") is only the safety net for a write that skipped the app
+// (a manual SQL fix, say); tags do the real invalidation.
 
 export type { ReceiptSort }
 
@@ -43,6 +60,13 @@ export type ReceiptListRow = Omit<ReceiptRow, "image_url"> & {
   has_image: boolean
 }
 
+/** Whose receipt a write touched: enough to work out every tag it affects. */
+export type ReceiptOwner = {
+  id: string
+  userId: string
+  orgId: string | null
+}
+
 export type InsertReceiptInput = {
   orgId: string | null
   merchant: string
@@ -66,13 +90,17 @@ export async function selectReceipts(
   userId: string,
   options: { limit?: number; receiptType?: ReceiptTypeId } = {}
 ): Promise<ReceiptListRow[]> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(`receipts:user:${userId}`)
+
   const sql = getSql()
   const limit = options.limit ?? 50
 
   const rows = options.receiptType
     ? await sql`
         select
-          id, user_id, merchant, purchased_on, currency,
+          id, user_id, org_id, merchant, purchased_on, currency,
           subtotal_cents, tax_cents, total_cents,
           receipt_type, type_source, detected_type, detected_confidence, splits,
           raw_text, notes, created_at, updated_at,
@@ -84,7 +112,7 @@ export async function selectReceipts(
       `
     : await sql`
         select
-          id, user_id, merchant, purchased_on, currency,
+          id, user_id, org_id, merchant, purchased_on, currency,
           subtotal_cents, tax_cents, total_cents,
           receipt_type, type_source, detected_type, detected_confidence, splits,
           raw_text, notes, created_at, updated_at,
@@ -103,6 +131,10 @@ export async function selectReceiptById(
   userId: string,
   id: string
 ): Promise<ReceiptRow | null> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(`receipts:user:${userId}`, `receipt:${id}`)
+
   const sql = getSql()
   const rows = (await sql`
     select * from receipts where user_id = ${userId} and id = ${id} limit 1
@@ -121,6 +153,12 @@ export async function selectVisibleReceiptImage(
   orgId: string | null,
   id: string
 ): Promise<string | null> {
+  "use cache"
+  cacheLife("hours")
+  // Only this receipt's tag: the row's owner and org can't change, so nothing
+  // but a write to this receipt (in practice, deleting it) changes the answer.
+  cacheTag(`receipt:${id}`)
+
   const sql = getSql()
   const rows = (await sql`
     select image_url from receipts
@@ -176,7 +214,7 @@ export async function updateReceiptType(
         updated_at = now()
     where user_id = ${userId} and id = ${id}
     returning
-      id, user_id, merchant, purchased_on, currency,
+      id, user_id, org_id, merchant, purchased_on, currency,
       subtotal_cents, tax_cents, total_cents,
       receipt_type, type_source, detected_type, detected_confidence, splits,
       raw_text, notes, created_at, updated_at,
@@ -217,24 +255,33 @@ export async function updateReceiptSplits(
   return rows[0] ?? null
 }
 
-export type DeletedReceiptRow = Pick<ReceiptRow, "id" | "org_id" | "image_url">
+/** A deleted receipt's owner, plus its photo so the caller can delete that too. */
+export type DeletedReceipt = ReceiptOwner & { imageUrl: string | null }
 
 /**
- * Deletes one of the user's own receipts. Returns what the caller needs to
- * clean up after it (the photo's blob pathname, and the org whose cached
- * searches included it), or null when there was nothing of theirs to delete.
+ * Deletes the user's receipt. Returns whose it was (so the caller can expire
+ * the right cache tags, including the org's) and its photo's blob pathname,
+ * or null when nothing matched.
  */
 export async function deleteReceipt(
   userId: string,
   id: string
-): Promise<DeletedReceiptRow | null> {
+): Promise<DeletedReceipt | null> {
   const sql = getSql()
   const rows = (await sql`
     delete from receipts where user_id = ${userId} and id = ${id}
-    returning id, org_id, image_url
-  `) as DeletedReceiptRow[]
+    returning id, user_id, org_id, image_url
+  `) as Pick<ReceiptRow, "id" | "user_id" | "org_id" | "image_url">[]
 
-  return rows[0] ?? null
+  const row = rows[0]
+  return row
+    ? {
+        id: row.id,
+        userId: row.user_id,
+        orgId: row.org_id,
+        imageUrl: row.image_url,
+      }
+    : null
 }
 
 export type ReceiptTotals = {
@@ -246,6 +293,10 @@ export type ReceiptTotals = {
 export async function selectReceiptTotals(
   userId: string
 ): Promise<ReceiptTotals> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(`receipts:user:${userId}`)
+
   const sql = getSql()
   const rows = (await sql`
     select
@@ -394,6 +445,14 @@ export async function selectMerchantSuggestions(
   query: string,
   limit = 6
 ): Promise<MerchantSuggestionRow[]> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(
+    scope.kind === "user"
+      ? `receipts:user:${scope.userId}`
+      : `receipts:org:${scope.orgId}`
+  )
+
   const text = query.trim()
   if (!text) return []
 
@@ -428,6 +487,14 @@ export async function searchReceipts(
   scope: ReceiptScope,
   filters: ReceiptSearchFilters = {}
 ): Promise<ReceiptSearchResult> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(
+    scope.kind === "user"
+      ? `receipts:user:${scope.userId}`
+      : `receipts:org:${scope.orgId}`
+  )
+
   const sql = getSql()
   const limit = Math.min(Math.max(filters.limit ?? 25, 1), 100)
   const offset = Math.max(filters.offset ?? 0, 0)
@@ -525,6 +592,14 @@ export async function selectReceiptsForExport(
   scope: ReceiptScope,
   filters: ReceiptSearchFilters = {}
 ): Promise<ReceiptExportResult> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(
+    scope.kind === "user"
+      ? `receipts:user:${scope.userId}`
+      : `receipts:org:${scope.orgId}`
+  )
+
   const sql = getSql()
   const { where, params } = buildWhere(scope, filters, { includeTypes: true })
 

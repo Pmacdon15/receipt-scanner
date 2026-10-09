@@ -1,8 +1,7 @@
 "use server"
 
-import { revalidatePath, updateTag } from "next/cache"
+import { updateTag } from "next/cache"
 
-import { receiptChangeTags } from "@/lib/cache-tags"
 import {
   createReceipt,
   InvalidInputError,
@@ -84,7 +83,11 @@ export async function scanReceiptAction(
           : undefined,
     })
 
-    revalidatePath("/scan")
+    // updateTag (not revalidateTag): the action's response already renders the
+    // new receipt. The org tag makes teammates' org searches pick it up too.
+    updateTag(`receipts:user:${receipt.userId}`)
+    if (receipt.orgId) updateTag(`receipts:org:${receipt.orgId}`)
+    updateTag(`receipt:${receipt.id}`)
 
     return {
       status: "success",
@@ -136,7 +139,9 @@ export async function setReceiptTypeAction(id: string, receiptType: string) {
       return { status: "error" as const, message: "Receipt not found." }
     }
 
-    revalidatePath("/scan")
+    updateTag(`receipts:user:${updated.userId}`)
+    if (updated.orgId) updateTag(`receipts:org:${updated.orgId}`)
+    updateTag(`receipt:${updated.id}`)
     return { status: "success" as const, message: "Type updated." }
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
@@ -161,8 +166,9 @@ export async function setReceiptSplitsAction(
       return { status: "error" as const, message: "Receipt not found." }
     }
 
-    revalidatePath("/scan")
-    revalidatePath("/search")
+    updateTag(`receipts:user:${updated.userId}`)
+    if (updated.orgId) updateTag(`receipts:org:${updated.orgId}`)
+    updateTag(`receipt:${updated.id}`)
     return { status: "success" as const, message: "Split updated." }
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
@@ -186,9 +192,11 @@ export async function deleteReceiptAction(id: string) {
       return { status: "error" as const, message: "Receipt not found." }
     }
 
-    for (const tag of receiptChangeTags(deleted)) updateTag(tag)
-    revalidatePath("/scan")
-    revalidatePath("/search")
+    // The org comes from the deleted row, not the active session, and the
+    // receipt's own tag makes its photo route stop serving it.
+    updateTag(`receipts:user:${deleted.userId}`)
+    if (deleted.orgId) updateTag(`receipts:org:${deleted.orgId}`)
+    updateTag(`receipt:${deleted.id}`)
     return { status: "success" as const, message: "Receipt deleted." }
   } catch (error) {
     return { status: "error" as const, ...describeError(error) }
