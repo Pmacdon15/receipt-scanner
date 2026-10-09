@@ -22,6 +22,7 @@ export const fake = {
   orgs: new Map<string, string>(),
   clerkDown: false,
   revalidated: [] as string[],
+  updatedTags: [] as string[],
   db: null as TestDb | null,
 }
 
@@ -36,6 +37,7 @@ export function resetFakes() {
   fake.orgs.clear()
   fake.clerkDown = false
   fake.revalidated.length = 0
+  fake.updatedTags.length = 0
 }
 
 mock.module("@clerk/nextjs/server", () => ({
@@ -75,6 +77,9 @@ mock.module("@clerk/nextjs/server", () => ({
 mock.module("next/cache", () => ({
   revalidatePath: (path: string) => {
     fake.revalidated.push(path)
+  },
+  updateTag: (tag: string) => {
+    fake.updatedTags.push(tag)
   },
 }))
 

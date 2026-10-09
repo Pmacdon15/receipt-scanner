@@ -217,16 +217,24 @@ export async function updateReceiptSplits(
   return rows[0] ?? null
 }
 
+export type DeletedReceiptRow = Pick<ReceiptRow, "id" | "org_id" | "image_url">
+
+/**
+ * Deletes one of the user's own receipts. Returns what the caller needs to
+ * clean up after it (the photo's blob pathname, and the org whose cached
+ * searches included it), or null when there was nothing of theirs to delete.
+ */
 export async function deleteReceipt(
   userId: string,
   id: string
-): Promise<boolean> {
+): Promise<DeletedReceiptRow | null> {
   const sql = getSql()
   const rows = (await sql`
-    delete from receipts where user_id = ${userId} and id = ${id} returning id
-  `) as { id: string }[]
+    delete from receipts where user_id = ${userId} and id = ${id}
+    returning id, org_id, image_url
+  `) as DeletedReceiptRow[]
 
-  return rows.length > 0
+  return rows[0] ?? null
 }
 
 export type ReceiptTotals = {

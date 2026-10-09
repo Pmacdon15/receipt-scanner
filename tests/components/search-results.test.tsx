@@ -1,10 +1,29 @@
-import { describe, expect, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 
 import { setupDom } from "../helpers/dom"
 import { makeSearchedReceipt } from "../helpers/fixtures"
 
-const { render } = await setupDom()
+const { render, fireEvent, waitFor } = await setupDom()
+
+type ActionResult = { status: "success" | "error"; message: string }
+
+const actions = {
+  deleteReceiptAction: mock<(id: string) => Promise<ActionResult>>(
+    async () => ({ status: "success", message: "Receipt deleted." })
+  ),
+}
+const toast = { success: mock(), error: mock() }
+
+mock.module("@/app/actions/receipts", () => actions)
+mock.module("sonner", () => ({ toast }))
+
 const { SearchResults } = await import("@/components/search/search-results")
+
+beforeEach(() => {
+  actions.deleteReceiptAction.mockClear()
+  toast.success.mockClear()
+  toast.error.mockClear()
+})
 
 describe("SearchResults", () => {
   test("invites a first scan when there are no receipts at all", () => {
@@ -103,5 +122,93 @@ describe("SearchResults", () => {
         name: "View the photo of the receipt from No Photo",
       })
     ).toBeNull()
+  })
+
+  test("offers delete only on the user's own receipts", () => {
+    const view = render(
+      <SearchResults
+        receipts={[
+          makeSearchedReceipt({ merchant: "Mine", isMine: true }),
+          makeSearchedReceipt({ merchant: "Theirs", isMine: false }),
+        ]}
+        showUploader
+        filtered={false}
+      />
+    )
+
+    expect(
+      view.getByRole("button", { name: "Delete receipt from Mine" })
+    ).toBeTruthy()
+    expect(
+      view.queryByRole("button", { name: "Delete receipt from Theirs" })
+    ).toBeNull()
+  })
+
+  test("deletes a receipt once confirmed and reports it", async () => {
+    const confirm = spyOn(window, "confirm").mockImplementation(() => true)
+    const onDeleted = mock<(id: string) => void>()
+    const receipt = makeSearchedReceipt({ merchant: "Safeway" })
+    const view = render(
+      <SearchResults
+        receipts={[receipt]}
+        showUploader={false}
+        filtered={false}
+        onDeleted={onDeleted}
+      />
+    )
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Delete receipt from Safeway" })
+    )
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(receipt.id))
+    expect(actions.deleteReceiptAction).toHaveBeenCalledWith(receipt.id)
+    expect(toast.success).toHaveBeenCalledWith("Receipt deleted.")
+    confirm.mockRestore()
+  })
+
+  test("does nothing when the delete is not confirmed", () => {
+    const confirm = spyOn(window, "confirm").mockImplementation(() => false)
+    const view = render(
+      <SearchResults
+        receipts={[makeSearchedReceipt({ merchant: "Safeway" })]}
+        showUploader={false}
+        filtered={false}
+      />
+    )
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Delete receipt from Safeway" })
+    )
+
+    expect(actions.deleteReceiptAction).not.toHaveBeenCalled()
+    confirm.mockRestore()
+  })
+
+  test("shows the error and keeps the receipt when the delete fails", async () => {
+    const confirm = spyOn(window, "confirm").mockImplementation(() => true)
+    actions.deleteReceiptAction.mockImplementationOnce(async () => ({
+      status: "error",
+      message: "Receipt not found.",
+    }))
+    const onDeleted = mock<(id: string) => void>()
+    const view = render(
+      <SearchResults
+        receipts={[makeSearchedReceipt({ merchant: "Safeway" })]}
+        showUploader={false}
+        filtered={false}
+        onDeleted={onDeleted}
+      />
+    )
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Delete receipt from Safeway" })
+    )
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Receipt not found.")
+    )
+    expect(onDeleted).not.toHaveBeenCalled()
+    confirm.mockRestore()
   })
 })

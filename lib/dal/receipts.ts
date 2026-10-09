@@ -1,4 +1,5 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
+import { del } from "@vercel/blob"
 import { cache } from "react"
 
 import { classifyReceiptSafely } from "@/lib/classify-receipt"
@@ -27,6 +28,8 @@ import {
   type ReceiptTypeId,
 } from "@/lib/receipt-types"
 import {
+  type DeleteReceiptInput,
+  deleteReceiptInputSchema,
   firstErrorMessage,
   type NewReceipt,
   newReceiptSchema,
@@ -283,10 +286,40 @@ export async function setReceiptSplits(
   )
 }
 
-export async function removeReceipt(id: string): Promise<boolean> {
+export type RemovedReceipt = {
+  id: string
+  userId: string
+  orgId: string | null
+}
+
+/**
+ * Deletes one of the caller's receipts and its photo. Returns null when the id
+ * is malformed or names nothing the caller owns.
+ *
+ * The row goes first: once it is gone nothing can serve the photo, so a blob
+ * delete that fails only leaves an unreachable file behind (logged for
+ * cleanup) rather than a receipt pointing at a missing photo.
+ */
+export async function removeReceipt(
+  input: DeleteReceiptInput
+): Promise<RemovedReceipt | null> {
   const userId = await requireUserId()
-  if (!receiptIdSchema.safeParse(id).success) return false
-  return deleteReceipt(userId, id)
+  const parsed = deleteReceiptInputSchema.safeParse(input)
+  if (!parsed.success) return null
+
+  const row = await deleteReceipt(userId, parsed.data.id)
+  if (!row) return null
+
+  // Only ever delete inside the caller's own blob folder, whatever the row says.
+  if (row.image_url && isOwnReceiptImagePathname(row.image_url, userId)) {
+    try {
+      await del(row.image_url)
+    } catch (error) {
+      console.error("receipt photo delete failed", row.image_url, error)
+    }
+  }
+
+  return { id: row.id, userId, orgId: row.org_id }
 }
 
 // Exposed so the scan form can preview a guess before anything is saved.

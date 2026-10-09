@@ -36,6 +36,7 @@ const blobStore = {
     stream: new ReadableStream(),
     blob: { contentType: "image/jpeg", size: 4 },
   })),
+  del: mock<(pathname: string | string[]) => Promise<void>>(async () => {}),
 }
 
 mock.module("@vercel/blob", () => blobStore)

@@ -170,6 +170,15 @@ function SearchWorkspace({
     [queryClient, viewer, router, setView, params.query]
   )
 
+  // A deleted receipt can sit in any cached search for this viewer (other
+  // pages, autocomplete previews), so drop them all; the action refreshes the
+  // server-rendered page itself.
+  const onReceiptDeleted = React.useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: receiptSearchKeys.all(viewer),
+    })
+  }, [queryClient, viewer])
+
   const prefetch = React.useCallback(
     (next: ReceiptSearchParams) => {
       void queryClient.prefetchQuery(receiptSearchQueryOptions(viewer, next))
@@ -327,6 +336,7 @@ function SearchWorkspace({
             receipts={shown.receipts}
             showUploader={shown.scope === "org"}
             filtered={filtered}
+            onDeleted={onReceiptDeleted}
           />
           <Pagination results={shown} current={current} />
         </section>

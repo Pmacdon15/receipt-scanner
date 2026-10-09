@@ -1,6 +1,7 @@
 import { SearchXIcon, SparklesIcon, UserIcon } from "lucide-react"
 import Link from "next/link"
 
+import { DeleteReceiptButton } from "@/components/receipts/delete-receipt-button"
 import { ReceiptPhotoButton } from "@/components/receipts/receipt-photo-sheet"
 import { SplitSummary } from "@/components/receipts/split-summary"
 import { Badge } from "@/components/ui/badge"
@@ -12,10 +13,13 @@ export function SearchResults({
   receipts,
   showUploader,
   filtered,
+  onDeleted,
 }: {
   receipts: SearchedReceipt[]
   showUploader: boolean
   filtered: boolean
+  /** Called after one of the user's own receipts is deleted. */
+  onDeleted?: (id: string) => void
 }) {
   if (receipts.length === 0) {
     return (
@@ -78,6 +82,12 @@ export function SearchResults({
                       totalCents: receipt.totalCents,
                       currency: receipt.currency,
                     }}
+                  />
+                )}
+                {receipt.isMine && (
+                  <DeleteReceiptButton
+                    receipt={{ id: receipt.id, merchant: receipt.merchant }}
+                    onDeleted={onDeleted}
                   />
                 )}
               </div>
