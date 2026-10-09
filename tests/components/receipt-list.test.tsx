@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { setupDom } from "../helpers/dom"
 import { makeReceipt } from "../helpers/fixtures"
 
-const { render, fireEvent, waitFor } = await setupDom()
+const { render, fireEvent, waitFor, within } = await setupDom()
 
 type ActionResult = { status: "success" | "error"; message: string }
 
@@ -67,13 +67,20 @@ describe("ReceiptList", () => {
     expect(mystery.textContent).not.toContain("%")
   })
 
-  test("deleting a receipt calls the action and confirms", async () => {
+  test("asks before deleting, then deletes on confirm", async () => {
     const receipt = makeReceipt({ merchant: "Safeway" })
     const view = render(<ReceiptList receipts={[receipt]} />)
 
     fireEvent.click(
       view.getByRole("button", { name: "Delete receipt from Safeway" })
     )
+
+    const dialog = await view.findByRole("alertdialog")
+    expect(dialog.textContent).toContain("Delete this receipt?")
+    expect(dialog.textContent).toContain("Safeway")
+    expect(actions.deleteReceiptAction).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Receipt deleted.")
@@ -89,11 +96,74 @@ describe("ReceiptList", () => {
     const view = render(<ReceiptList receipts={[makeReceipt()]} />)
 
     fireEvent.click(view.getByRole("button", { name: /Delete receipt/ }))
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Receipt not found.")
     )
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  test("removes the row as soon as the delete is confirmed", async () => {
+    let finish: (result: ActionResult) => void = () => {}
+    actions.deleteReceiptAction.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <ReceiptList
+        receipts={[
+          makeReceipt({ merchant: "Safeway" }),
+          makeReceipt({ merchant: "Shell" }),
+        ]}
+      />
+    )
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Delete receipt from Safeway" })
+    )
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    // Gone while the server is still working on it.
+    await waitFor(() => expect(view.queryByText("Safeway")).toBeNull())
+    expect(view.getByText("Shell")).toBeTruthy()
+
+    finish({ status: "success", message: "Receipt deleted." })
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Receipt deleted.")
+    )
+  })
+
+  test("brings the row back when the delete fails", async () => {
+    let finish: (result: ActionResult) => void = () => {}
+    actions.deleteReceiptAction.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <ReceiptList receipts={[makeReceipt({ merchant: "Safeway" })]} />
+    )
+
+    fireEvent.click(view.getByRole("button", { name: /Delete receipt/ }))
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+    await waitFor(() => expect(view.queryByText("Safeway")).toBeNull())
+
+    finish({ status: "error", message: "Receipt not found." })
+
+    await waitFor(() => expect(view.getByText("Safeway")).toBeTruthy())
+    expect(toast.error).toHaveBeenCalledWith("Receipt not found.")
+  })
+
+  test("cancelling the dialog keeps the receipt", async () => {
+    const view = render(<ReceiptList receipts={[makeReceipt()]} />)
+
+    fireEvent.click(view.getByRole("button", { name: /Delete receipt/ }))
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(view.queryByRole("alertdialog")).toBeNull())
+    expect(actions.deleteReceiptAction).not.toHaveBeenCalled()
   })
 
   test("shows a photo button only when a receipt has an image", () => {

@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  ImageIcon,
-  Loader2Icon,
-  SparklesIcon,
-  SplitIcon,
-  Trash2Icon,
-  UserIcon,
-} from "lucide-react"
+import { ImageIcon, SparklesIcon, SplitIcon, UserIcon } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -16,6 +9,7 @@ import {
   setReceiptSplitsAction,
   setReceiptTypeAction,
 } from "@/app/actions/receipts"
+import { DeleteReceiptButton } from "@/components/receipts/delete-receipt-button"
 import { ReceiptPhotoSheet } from "@/components/receipts/receipt-photo-sheet"
 import { SplitSummary } from "@/components/receipts/split-summary"
 import {
@@ -46,7 +40,25 @@ const SELECT_ITEMS: Record<string, React.ReactNode> = Object.fromEntries(
 )
 
 export function ReceiptList({ receipts }: { receipts: Receipt[] }) {
-  if (receipts.length === 0) {
+  // A deleted receipt leaves the list as soon as it's confirmed. The server
+  // action's updateTag re-renders the list without it; if the delete fails,
+  // the transition ends without new data and the row comes back.
+  const [shown, removeShown] = React.useOptimistic(
+    receipts,
+    (current, id: string) => current.filter((r) => r.id !== id)
+  )
+  const [, startTransition] = React.useTransition()
+
+  function remove(id: string) {
+    startTransition(async () => {
+      removeShown(id)
+      const result = await deleteReceiptAction(id)
+      if (result.status === "error") toast.error(result.message)
+      else toast.success("Receipt deleted.")
+    })
+  }
+
+  if (shown.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center">
         <p className="font-medium">No receipts yet</p>
@@ -59,14 +71,24 @@ export function ReceiptList({ receipts }: { receipts: Receipt[] }) {
 
   return (
     <ul className="flex flex-col gap-3">
-      {receipts.map((receipt) => (
-        <ReceiptRow key={receipt.id} receipt={receipt} />
+      {shown.map((receipt) => (
+        <ReceiptRow
+          key={receipt.id}
+          receipt={receipt}
+          onDelete={() => remove(receipt.id)}
+        />
       ))}
     </ul>
   )
 }
 
-function ReceiptRow({ receipt }: { receipt: Receipt }) {
+function ReceiptRow({
+  receipt,
+  onDelete,
+}: {
+  receipt: Receipt
+  onDelete: () => void
+}) {
   const [isPending, startTransition] = React.useTransition()
   const [isPhotoOpen, setIsPhotoOpen] = React.useState(false)
   // Editing the categories and amounts, including ones that were detected.
@@ -147,14 +169,6 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
     })
   }
 
-  function remove() {
-    startTransition(async () => {
-      const result = await deleteReceiptAction(receipt.id)
-      if (result.status === "error") toast.error(result.message)
-      else toast.success("Receipt deleted.")
-    })
-  }
-
   return (
     <li
       data-pending={isPending}
@@ -228,19 +242,11 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
             </SelectContent>
           </Select>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Delete receipt from ${receipt.merchant}`}
+          <DeleteReceiptButton
+            receipt={receipt}
+            onConfirm={onDelete}
             disabled={isPending}
-            onClick={remove}
-          >
-            {isPending ? (
-              <Loader2Icon className="animate-spin" />
-            ) : (
-              <Trash2Icon />
-            )}
-          </Button>
+          />
         </div>
       </div>
 

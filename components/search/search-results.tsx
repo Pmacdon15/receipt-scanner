@@ -1,6 +1,11 @@
+"use client"
+
 import { SearchXIcon, SparklesIcon, UserIcon } from "lucide-react"
 import Link from "next/link"
+import * as React from "react"
+import { toast } from "sonner"
 
+import { deleteReceiptAction } from "@/app/actions/receipts"
 import { DeleteReceiptButton } from "@/components/receipts/delete-receipt-button"
 import { ReceiptPhotoButton } from "@/components/receipts/receipt-photo-sheet"
 import { SplitSummary } from "@/components/receipts/split-summary"
@@ -21,7 +26,28 @@ export function SearchResults({
   /** Called after one of the user's own receipts is deleted. */
   onDeleted?: (id: string) => void
 }) {
-  if (receipts.length === 0) {
+  // Same optimistic delete as the scan page: the row goes on confirm, the
+  // server re-render confirms it, and a failed delete brings it back.
+  const [shown, removeShown] = React.useOptimistic(
+    receipts,
+    (current, id: string) => current.filter((r) => r.id !== id)
+  )
+  const [, startTransition] = React.useTransition()
+
+  function remove(id: string) {
+    startTransition(async () => {
+      removeShown(id)
+      const result = await deleteReceiptAction(id)
+      if (result.status === "error") {
+        toast.error(result.message)
+      } else {
+        toast.success("Receipt deleted.")
+        onDeleted?.(id)
+      }
+    })
+  }
+
+  if (shown.length === 0) {
     return (
       <div className="flex flex-col items-center rounded-lg border border-dashed p-10 text-center">
         <SearchXIcon className="size-5 text-muted-foreground" />
@@ -46,7 +72,7 @@ export function SearchResults({
 
   return (
     <ul className="flex flex-col gap-3">
-      {receipts.map((receipt) => (
+      {shown.map((receipt) => (
         <li key={receipt.id} className="rounded-lg border bg-card p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
@@ -84,10 +110,12 @@ export function SearchResults({
                     }}
                   />
                 )}
+                {/* Only your own: org results include teammates' receipts,
+                    which the delete action won't touch. */}
                 {receipt.isMine && (
                   <DeleteReceiptButton
-                    receipt={{ id: receipt.id, merchant: receipt.merchant }}
-                    onDeleted={onDeleted}
+                    receipt={receipt}
+                    onConfirm={() => remove(receipt.id)}
                   />
                 )}
               </div>
