@@ -15,9 +15,9 @@ import {
 import { extractReceiptFieldsSafely } from "@/lib/extract-receipt"
 import { isOwnReceiptImagePathname } from "@/lib/receipt-image"
 import {
+  deleteReceiptInputSchema,
   fieldErrorsFrom,
   firstErrorMessage,
-  receiptIdSchema,
   type ScanReceiptField,
   scanReceiptFormSchema,
   setReceiptSplitsInputSchema,
@@ -175,8 +175,13 @@ export async function setReceiptSplitsAction(
   }
 }
 
+/**
+ * Deletes one of the caller's receipts, from the scan list or the search page,
+ * along with its photo. updateTag expires the user's (and the org's) cached
+ * receipt data so the next read in this request sees it gone.
+ */
 export async function deleteReceiptAction(id: string) {
-  const parsed = receiptIdSchema.safeParse(id)
+  const parsed = deleteReceiptInputSchema.safeParse({ id })
   if (!parsed.success) {
     return { status: "error" as const, message: "Receipt not found." }
   }

@@ -195,9 +195,24 @@ describe("single-receipt operations are scoped to the owner", () => {
       id: row.id,
       userId: "user_a",
       orgId: null,
+      imageUrl: null,
     })
     expect(await deleteReceipt("user_a", row.id)).toBeNull()
     expect(await selectReceiptById("user_a", row.id)).toBeNull()
+  })
+
+  test("deleteReceipt returns the photo pathname and org to clean up", async () => {
+    const row = await insertReceipt(
+      "user_a",
+      receipt({ orgId: "org_1", imageUrl: "receipts/user_a/photo.jpg" })
+    )
+
+    expect(await deleteReceipt("user_a", row.id)).toEqual({
+      id: row.id,
+      userId: "user_a",
+      orgId: "org_1",
+      imageUrl: "receipts/user_a/photo.jpg",
+    })
   })
 })
 

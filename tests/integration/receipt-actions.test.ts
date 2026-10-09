@@ -16,6 +16,7 @@ import {
 } from "@/app/actions/receipts"
 import { getReceipts } from "@/lib/dal/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
+import { blob, resetBlob } from "../helpers/blob-mock"
 import { fake, resetFakes, signIn } from "../helpers/server-mocks"
 import { createTestDb, type TestDb } from "../helpers/test-db"
 
@@ -33,6 +34,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   resetFakes()
+  resetBlob()
   await testDb.reset()
 })
 
@@ -325,13 +327,52 @@ describe("deleteReceiptAction", () => {
     ])
   })
 
+  test("deletes the photo and expires the user's and org's cached receipts", async () => {
+    signIn("user_a", "org_1")
+    const imagePathname = newReceiptImagePathname("user_a")
+    await scanReceiptAction(
+      IDLE,
+      form({ merchant: "Shop", total: "1", imagePathname })
+    )
+    const [saved] = await getReceipts()
+    fake.updatedTags.length = 0
+
+    expect((await deleteReceiptAction(saved.id)).status).toBe("success")
+    expect(blob.deleted).toEqual([imagePathname])
+    expect(fake.updatedTags).toEqual([
+      "receipts:user:user_a",
+      "receipts:org:org_1",
+      `receipt:${saved.id}`,
+    ])
+  })
+
+  test("rejects a malformed id before touching anything", async () => {
+    signIn("user_a")
+
+    expect(await deleteReceiptAction("not-a-uuid")).toEqual({
+      status: "error",
+      message: "Receipt not found.",
+    })
+    expect(fake.updatedTags).toEqual([])
+    expect(blob.deleted).toEqual([])
+  })
+
+  test("asks a signed-out caller to sign in", async () => {
+    expect(await deleteReceiptAction(crypto.randomUUID())).toMatchObject({
+      status: "error",
+      message: "Sign in to save receipts.",
+    })
+  })
+
   test("cannot delete another user's receipt", async () => {
     signIn("user_a")
     await scanReceiptAction(IDLE, form({ merchant: "Shop", total: "1" }))
     const [saved] = await getReceipts()
+    fake.updatedTags.length = 0
 
     signIn("user_b")
     expect((await deleteReceiptAction(saved.id)).status).toBe("error")
+    expect(fake.updatedTags).toEqual([])
 
     signIn("user_a")
     expect(await getReceipts()).toHaveLength(1)

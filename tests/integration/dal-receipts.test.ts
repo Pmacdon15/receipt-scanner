@@ -23,6 +23,7 @@ import {
   UnauthorizedError,
 } from "@/lib/dal/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
+import { blob, resetBlob } from "../helpers/blob-mock"
 import { fake, resetFakes, signIn } from "../helpers/server-mocks"
 import { createTestDb, type TestDb } from "../helpers/test-db"
 
@@ -40,6 +41,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   resetFakes()
+  resetBlob()
   await testDb.reset()
 })
 
@@ -68,7 +70,7 @@ describe("when signed out", () => {
     ["getReceiptTotals", () => getReceiptTotals()],
     ["createReceipt", () => createReceipt(newReceipt())],
     ["setReceiptType", () => setReceiptType("x", "fuel")],
-    ["removeReceipt", () => removeReceipt("x")],
+    ["removeReceipt", () => removeReceipt({ id: "x" })],
     ["suggestReceiptType", () => suggestReceiptType({ merchant: "Shell" })],
     ["searchReceipts", () => searchReceipts({ scope: "mine" })],
   ])("%s refuses with UnauthorizedError", async (_, call) => {
@@ -206,7 +208,7 @@ describe("reading and changing receipts", () => {
     await createReceipt(newReceipt({ merchant: "Theirs", totalCents: 5 }))
     expect(await getReceipt(mine.id)).toBeNull()
     expect(await setReceiptType(mine.id, "fuel")).toBeNull()
-    expect(await removeReceipt(mine.id)).toBeNull()
+    expect(await removeReceipt({ id: mine.id })).toBeNull()
     expect((await getReceipts()).map((r) => r.merchant)).toEqual(["Theirs"])
 
     signIn("user_a")
@@ -230,12 +232,61 @@ describe("reading and changing receipts", () => {
     signIn("user_a")
     const created = await createReceipt(newReceipt())
 
-    expect(await removeReceipt(created.id)).toEqual({
+    expect(await removeReceipt({ id: created.id })).toEqual({
       id: created.id,
       userId: "user_a",
       orgId: null,
     })
     expect(await getReceipt(created.id)).toBeNull()
+    expect(blob.deleted).toEqual([])
+  })
+
+  test("removeReceipt rejects a malformed id without touching anything", async () => {
+    signIn("user_a")
+    await createReceipt(newReceipt())
+
+    expect(await removeReceipt({ id: "not-a-uuid" })).toBeNull()
+    expect(await getReceipts()).toHaveLength(1)
+  })
+
+  test("removeReceipt deletes the photo blob and reports the org", async () => {
+    signIn("user_a", "org_1")
+    const imageUrl = newReceiptImagePathname("user_a")
+    const created = await createReceipt(newReceipt({ imageUrl }))
+
+    expect(await removeReceipt({ id: created.id })).toEqual({
+      id: created.id,
+      userId: "user_a",
+      orgId: "org_1",
+    })
+    expect(blob.deleted).toEqual([imageUrl])
+  })
+
+  test("removeReceipt never deletes a photo outside the caller's folder", async () => {
+    signIn("user_a")
+    const created = await createReceipt(newReceipt())
+    // A row pointing elsewhere can only come from bad data, never the app.
+    await testDb.sql`
+      update receipts set image_url = ${newReceiptImagePathname("user_b")}
+      where id = ${created.id}
+    `
+
+    expect(await removeReceipt({ id: created.id })).not.toBeNull()
+    expect(blob.deleted).toEqual([])
+  })
+
+  test("removeReceipt still deletes the receipt when the blob store fails", async () => {
+    const logged = spyOn(console, "error").mockImplementation(() => {})
+    signIn("user_a")
+    const created = await createReceipt(
+      newReceipt({ imageUrl: newReceiptImagePathname("user_a") })
+    )
+    blob.failDeletes = true
+
+    expect(await removeReceipt({ id: created.id })).not.toBeNull()
+    expect(await getReceipt(created.id)).toBeNull()
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
   })
 
   test("getReceipts can filter by type", async () => {

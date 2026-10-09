@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import {
   clientImageFileSchema,
+  deleteReceiptInputSchema,
   extractionResultSchema,
   imageUploadFileSchema,
   imageUploadResponseSchema,
@@ -12,6 +13,21 @@ import {
 } from "@/lib/schemas"
 
 describe("schemas", () => {
+  describe("deleteReceiptInputSchema", () => {
+    test("accepts a receipt uuid", () => {
+      const id = crypto.randomUUID()
+      expect(deleteReceiptInputSchema.parse({ id })).toEqual({ id })
+    })
+
+    test("rejects anything that is not a uuid", () => {
+      for (const id of ["", "x", "../receipts", 42, null]) {
+        const result = deleteReceiptInputSchema.safeParse({ id })
+        expect(result.success).toBe(false)
+      }
+      expect(deleteReceiptInputSchema.safeParse({}).success).toBe(false)
+    })
+  })
+
   describe("receiptImagePathnameSchema", () => {
     test("validates properly formatted receipt photo pathnames", () => {
       const valid = "receipts/user_abc/12345678-1234-1234-1234-123456789abc.jpg"

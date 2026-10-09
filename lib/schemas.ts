@@ -312,6 +312,12 @@ export const setReceiptSplitsInputSchema = z.object({
   splits: receiptSplitsSchema,
 })
 
+export const deleteReceiptInputSchema = z.object({
+  id: receiptIdSchema,
+})
+
+export type DeleteReceiptInput = z.infer<typeof deleteReceiptInputSchema>
+
 export const suggestReceiptTypeInputSchema = z.object({
   merchant: z.string().max(MERCHANT_MAX, MERCHANT_TOO_LONG).nullish(),
   rawText: z.string().max(RAW_TEXT_MAX, RAW_TEXT_TOO_LONG).nullish(),

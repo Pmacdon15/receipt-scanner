@@ -255,22 +255,33 @@ export async function updateReceiptSplits(
   return rows[0] ?? null
 }
 
+/** A deleted receipt's owner, plus its photo so the caller can delete that too. */
+export type DeletedReceipt = ReceiptOwner & { imageUrl: string | null }
+
 /**
  * Deletes the user's receipt. Returns whose it was (so the caller can expire
- * the right cache tags, including the org's), or null when nothing matched.
+ * the right cache tags, including the org's) and its photo's blob pathname,
+ * or null when nothing matched.
  */
 export async function deleteReceipt(
   userId: string,
   id: string
-): Promise<ReceiptOwner | null> {
+): Promise<DeletedReceipt | null> {
   const sql = getSql()
   const rows = (await sql`
     delete from receipts where user_id = ${userId} and id = ${id}
-    returning id, user_id, org_id
-  `) as Pick<ReceiptRow, "id" | "user_id" | "org_id">[]
+    returning id, user_id, org_id, image_url
+  `) as Pick<ReceiptRow, "id" | "user_id" | "org_id" | "image_url">[]
 
   const row = rows[0]
-  return row ? { id: row.id, userId: row.user_id, orgId: row.org_id } : null
+  return row
+    ? {
+        id: row.id,
+        userId: row.user_id,
+        orgId: row.org_id,
+        imageUrl: row.image_url,
+      }
+    : null
 }
 
 export type ReceiptTotals = {
