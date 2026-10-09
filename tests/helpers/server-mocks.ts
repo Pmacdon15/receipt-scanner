@@ -21,7 +21,11 @@ export const fake = {
   users: new Map<string, FakeUser>(),
   orgs: new Map<string, string>(),
   clerkDown: false,
-  revalidated: [] as string[],
+  // Tags expired by updateTag (Server Actions) and revalidateTag (routes),
+  // and the tags each cached read registered, in call order.
+  updatedTags: [] as string[],
+  revalidatedTags: [] as { tag: string; profile: unknown }[],
+  cacheTags: [] as string[],
   db: null as TestDb | null,
 }
 
@@ -35,7 +39,9 @@ export function resetFakes() {
   fake.users.clear()
   fake.orgs.clear()
   fake.clerkDown = false
-  fake.revalidated.length = 0
+  fake.updatedTags.length = 0
+  fake.revalidatedTags.length = 0
+  fake.cacheTags.length = 0
 }
 
 mock.module("@clerk/nextjs/server", () => ({
@@ -72,9 +78,18 @@ mock.module("@clerk/nextjs/server", () => ({
   }),
 }))
 
+// "use cache" is a plain string to Bun, so cached reads just run every time;
+// these record the tags so tests can check reads and writes agree on them.
 mock.module("next/cache", () => ({
-  revalidatePath: (path: string) => {
-    fake.revalidated.push(path)
+  cacheLife: () => {},
+  cacheTag: (...tags: string[]) => {
+    fake.cacheTags.push(...tags)
+  },
+  updateTag: (tag: string) => {
+    fake.updatedTags.push(tag)
+  },
+  revalidateTag: (tag: string, profile: unknown) => {
+    fake.revalidatedTags.push({ tag, profile })
   },
 }))
 

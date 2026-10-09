@@ -206,7 +206,7 @@ describe("reading and changing receipts", () => {
     await createReceipt(newReceipt({ merchant: "Theirs", totalCents: 5 }))
     expect(await getReceipt(mine.id)).toBeNull()
     expect(await setReceiptType(mine.id, "fuel")).toBeNull()
-    expect(await removeReceipt(mine.id)).toBe(false)
+    expect(await removeReceipt(mine.id)).toBeNull()
     expect((await getReceipts()).map((r) => r.merchant)).toEqual(["Theirs"])
 
     signIn("user_a")
@@ -230,7 +230,11 @@ describe("reading and changing receipts", () => {
     signIn("user_a")
     const created = await createReceipt(newReceipt())
 
-    expect(await removeReceipt(created.id)).toBe(true)
+    expect(await removeReceipt(created.id)).toEqual({
+      id: created.id,
+      userId: "user_a",
+      orgId: null,
+    })
     expect(await getReceipt(created.id)).toBeNull()
   })
 

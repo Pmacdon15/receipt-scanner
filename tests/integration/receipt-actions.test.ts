@@ -45,7 +45,7 @@ function form(fields: Record<string, string>) {
 }
 
 describe("scanReceiptAction", () => {
-  test("saves a valid receipt end to end and revalidates the scan page", async () => {
+  test("saves a valid receipt end to end and expires the user's cache tags", async () => {
     signIn("user_a")
 
     const state = await scanReceiptAction(
@@ -67,9 +67,12 @@ describe("scanReceiptAction", () => {
       message: "Saved Home Depot.",
       fieldErrors: {},
     })
-    expect(fake.revalidated).toEqual(["/scan"])
-
     const [saved] = await getReceipts()
+    expect(fake.updatedTags).toEqual([
+      "receipts:user:user_a",
+      `receipt:${saved.id}`,
+    ])
+
     expect(saved).toMatchObject({
       merchant: "Home Depot",
       totalCents: 11300,
@@ -133,7 +136,7 @@ describe("scanReceiptAction", () => {
       },
     })
     expect(await getReceipts()).toEqual([])
-    expect(fake.revalidated).toEqual([])
+    expect(fake.updatedTags).toEqual([])
   })
 
   test("rejects an overlong merchant and a negative total", async () => {
@@ -230,7 +233,7 @@ describe("setReceiptTypeAction", () => {
     signIn("user_a")
     await scanReceiptAction(IDLE, form({ merchant: "Shell", total: "50" }))
     const [saved] = await getReceipts()
-    fake.revalidated.length = 0
+    fake.updatedTags.length = 0
     return saved
   }
 
@@ -242,7 +245,10 @@ describe("setReceiptTypeAction", () => {
       message: "Type updated.",
     })
     expect((await getReceipts())[0].receiptType).toBe("travel")
-    expect(fake.revalidated).toEqual(["/scan"])
+    expect(fake.updatedTags).toEqual([
+      "receipts:user:user_a",
+      `receipt:${saved.id}`,
+    ])
   })
 
   test("rejects an unknown type without touching the database", async () => {
@@ -286,10 +292,37 @@ describe("deleteReceiptAction", () => {
       message: "Receipt deleted.",
     })
     expect(await getReceipts()).toEqual([])
+    expect(fake.updatedTags).toContain(`receipt:${saved.id}`)
+
+    fake.updatedTags.length = 0
     expect(await deleteReceiptAction(saved.id)).toEqual({
       status: "error",
       message: "Receipt not found.",
     })
+    // Nothing was deleted, so nothing is expired.
+    expect(fake.updatedTags).toEqual([])
+  })
+
+  test("expires the organization's tag for a receipt saved into one", async () => {
+    signIn("user_a", "org_1")
+    await scanReceiptAction(IDLE, form({ merchant: "Shop", total: "1" }))
+    const [saved] = await getReceipts()
+    expect(fake.updatedTags).toEqual([
+      "receipts:user:user_a",
+      "receipts:org:org_1",
+      `receipt:${saved.id}`,
+    ])
+
+    // Deleting it after switching away from the org still expires the org's
+    // tag: the tags come from the deleted row, not the active session.
+    signIn("user_a")
+    fake.updatedTags.length = 0
+    await deleteReceiptAction(saved.id)
+    expect(fake.updatedTags).toEqual([
+      "receipts:user:user_a",
+      "receipts:org:org_1",
+      `receipt:${saved.id}`,
+    ])
   })
 
   test("cannot delete another user's receipt", async () => {
