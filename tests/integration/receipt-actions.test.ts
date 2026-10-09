@@ -1,5 +1,3 @@
-import { blob, resetBlob } from "../helpers/blob-mock"
-
 import {
   afterAll,
   beforeAll,
@@ -18,6 +16,7 @@ import {
 } from "@/app/actions/receipts"
 import { getReceipts } from "@/lib/dal/receipts"
 import { newReceiptImagePathname } from "@/lib/receipt-image"
+import { blob, resetBlob } from "../helpers/blob-mock"
 import { fake, resetFakes, signIn } from "../helpers/server-mocks"
 import { createTestDb, type TestDb } from "../helpers/test-db"
 
@@ -369,6 +368,7 @@ describe("deleteReceiptAction", () => {
     signIn("user_a")
     await scanReceiptAction(IDLE, form({ merchant: "Shop", total: "1" }))
     const [saved] = await getReceipts()
+    fake.updatedTags.length = 0
 
     signIn("user_b")
     expect((await deleteReceiptAction(saved.id)).status).toBe("error")
