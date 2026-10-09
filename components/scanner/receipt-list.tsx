@@ -23,6 +23,17 @@ import {
   SplitEditor,
   type SplitRow,
 } from "@/components/scanner/split-editor"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -69,6 +80,7 @@ export function ReceiptList({ receipts }: { receipts: Receipt[] }) {
 function ReceiptRow({ receipt }: { receipt: Receipt }) {
   const [isPending, startTransition] = React.useTransition()
   const [isPhotoOpen, setIsPhotoOpen] = React.useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false)
   // Editing the categories and amounts, including ones that were detected.
   const [splitDraft, setSplitDraft] = React.useState<SplitRow[] | null>(null)
 
@@ -150,6 +162,9 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
   function remove() {
     startTransition(async () => {
       const result = await deleteReceiptAction(receipt.id)
+      // Stays open (with the spinner) until the delete settles, so a slow
+      // request can't be confirmed twice.
+      setIsDeleteOpen(false)
       if (result.status === "error") toast.error(result.message)
       else toast.success("Receipt deleted.")
     })
@@ -228,19 +243,55 @@ function ReceiptRow({ receipt }: { receipt: Receipt }) {
             </SelectContent>
           </Select>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Delete receipt from ${receipt.merchant}`}
-            disabled={isPending}
-            onClick={remove}
+          <AlertDialog
+            open={isDeleteOpen}
+            onOpenChange={(open) => {
+              // Don't let Escape or Cancel close it mid-delete.
+              if (!isPending) setIsDeleteOpen(open)
+            }}
           >
-            {isPending ? (
-              <Loader2Icon className="animate-spin" />
-            ) : (
-              <Trash2Icon />
-            )}
-          </Button>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Delete receipt from ${receipt.merchant}`}
+                  disabled={isPending}
+                />
+              }
+            >
+              {isPending ? (
+                <Loader2Icon className="animate-spin" />
+              ) : (
+                <Trash2Icon />
+              )}
+            </AlertDialogTrigger>
+            <AlertDialogContent size="sm">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this receipt?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The receipt from {receipt.merchant} for{" "}
+                  {formatMoney(receipt.totalCents, receipt.currency)} on{" "}
+                  {formatDate(receipt.purchasedOn)}
+                  {receipt.hasImage ? ", and its photo," : ""} will be
+                  permanently deleted. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isPending}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={isPending}
+                  onClick={remove}
+                >
+                  {isPending && <Loader2Icon className="animate-spin" />}
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
