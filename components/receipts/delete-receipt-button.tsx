@@ -1,55 +1,84 @@
 "use client"
 
-import { Loader2Icon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
 
-import { deleteReceiptAction } from "@/app/actions/receipts"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { formatDate, formatMoney } from "@/lib/money"
+
+type DeletableReceipt = {
+  merchant: string
+  totalCents: number
+  currency: string
+  purchasedOn: string | null
+  hasImage: boolean
+}
 
 /**
- * Deletes a receipt (and its photo) after the user confirms. The action
- * refreshes the page's server data; `onDeleted` lets the caller drop any
- * client-side copies too.
+ * Trash button that asks before deleting. `onConfirm` runs once the user
+ * confirms; the caller removes the row optimistically, so the dialog closes
+ * straight away rather than waiting on the server.
  */
 export function DeleteReceiptButton({
   receipt,
-  onDeleted,
+  onConfirm,
+  disabled,
 }: {
-  receipt: { id: string; merchant: string }
-  onDeleted?: (id: string) => void
+  receipt: DeletableReceipt
+  onConfirm: () => void
+  disabled?: boolean
 }) {
-  const [isPending, startTransition] = React.useTransition()
-
-  function remove() {
-    if (
-      !window.confirm(
-        `Delete the receipt from ${receipt.merchant}? Its photo is deleted too.`
-      )
-    ) {
-      return
-    }
-
-    startTransition(async () => {
-      const result = await deleteReceiptAction(receipt.id)
-      if (result.status === "error") {
-        toast.error(result.message)
-        return
-      }
-      toast.success("Receipt deleted.")
-      onDeleted?.(receipt.id)
-    })
-  }
+  const [open, setOpen] = React.useState(false)
 
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={`Delete receipt from ${receipt.merchant}`}
-      disabled={isPending}
-      onClick={remove}
-    >
-      {isPending ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
-    </Button>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete receipt from ${receipt.merchant}`}
+            disabled={disabled}
+          />
+        }
+      >
+        <Trash2Icon />
+      </AlertDialogTrigger>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this receipt?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The receipt from {receipt.merchant} for{" "}
+            {formatMoney(receipt.totalCents, receipt.currency)} on{" "}
+            {formatDate(receipt.purchasedOn)}
+            {receipt.hasImage ? ", and its photo," : ""} will be permanently
+            deleted. This can't be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => {
+              setOpen(false)
+              onConfirm()
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

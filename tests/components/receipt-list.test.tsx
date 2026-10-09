@@ -105,6 +105,56 @@ describe("ReceiptList", () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  test("removes the row as soon as the delete is confirmed", async () => {
+    let finish: (result: ActionResult) => void = () => {}
+    actions.deleteReceiptAction.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <ReceiptList
+        receipts={[
+          makeReceipt({ merchant: "Safeway" }),
+          makeReceipt({ merchant: "Shell" }),
+        ]}
+      />
+    )
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Delete receipt from Safeway" })
+    )
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    // Gone while the server is still working on it.
+    await waitFor(() => expect(view.queryByText("Safeway")).toBeNull())
+    expect(view.getByText("Shell")).toBeTruthy()
+
+    finish({ status: "success", message: "Receipt deleted." })
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Receipt deleted.")
+    )
+  })
+
+  test("brings the row back when the delete fails", async () => {
+    let finish: (result: ActionResult) => void = () => {}
+    actions.deleteReceiptAction.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <ReceiptList receipts={[makeReceipt({ merchant: "Safeway" })]} />
+    )
+
+    fireEvent.click(view.getByRole("button", { name: /Delete receipt/ }))
+    const dialog = await view.findByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+    await waitFor(() => expect(view.queryByText("Safeway")).toBeNull())
+
+    finish({ status: "error", message: "Receipt not found." })
+
+    await waitFor(() => expect(view.getByText("Safeway")).toBeTruthy())
+    expect(toast.error).toHaveBeenCalledWith("Receipt not found.")
+  })
+
   test("cancelling the dialog keeps the receipt", async () => {
     const view = render(<ReceiptList receipts={[makeReceipt()]} />)
 
