@@ -1,5 +1,5 @@
 export const site = {
-  name: "Receiptly",
+  name: "Receipt Scanner Pro",
   tagline: "Turn a shoebox of receipts into clean, categorised expense data.",
   nav: [
     { href: "/", label: "Home" },
