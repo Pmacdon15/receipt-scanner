@@ -6,7 +6,7 @@ test.describe("home page", () => {
   test("introduces the product", async ({ page }) => {
     await page.goto("/")
 
-    await expect(page).toHaveTitle(/Receiptly/)
+    await expect(page).toHaveTitle(/Receipt Scanner Pro/)
     await expect(
       page.getByRole("heading", {
         level: 1,

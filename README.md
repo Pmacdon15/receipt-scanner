@@ -1,4 +1,4 @@
-# Receiptly
+# Receipt Scanner Pro
 
 Receipt scanning SaaS. Capture a receipt once, get a categorised, totalled
 record you can report on.
@@ -136,7 +136,7 @@ The Vercel CLI needs an interactive browser login first:
 
 ```bash
 vercel login
-vercel link --project receipt-scanner --yes
+vercel link --project receipt-scanner-pro --yes
 ```
 
 Then push the three secrets to the project. Pull the values from
