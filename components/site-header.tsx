@@ -1,6 +1,6 @@
 "use client"
 
-import { UserButton, useAuth } from "@clerk/nextjs"
+import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs"
 import { MenuIcon, ReceiptTextIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -113,7 +113,12 @@ export function SiteHeader() {
           )}
 
           {isLoaded && isSignedIn && (
-            <UserButton appearance={{ elements: { avatarBox: "size-7" } }} />
+            <>
+              <UserButton appearance={{ elements: { avatarBox: "size-7" } }} />
+              <OrganizationSwitcher
+                appearance={{ elements: { avatarBox: "size-7" } }}
+              />
+            </>
           )}
 
           <Sheet open={open} onOpenChange={setOpen}>
