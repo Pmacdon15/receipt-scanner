@@ -307,6 +307,7 @@ describe("deleteReceiptAction", () => {
 
   test("expires the organization's tag for a receipt saved into one", async () => {
     signIn("user_a", "org_1")
+    fake.orgMembers.set("org_1", 1)
     await scanReceiptAction(IDLE, form({ merchant: "Shop", total: "1" }))
     const [saved] = await getReceipts()
     expect(fake.updatedTags).toEqual([
@@ -329,6 +330,7 @@ describe("deleteReceiptAction", () => {
 
   test("deletes the photo and expires the user's and org's cached receipts", async () => {
     signIn("user_a", "org_1")
+    fake.orgMembers.set("org_1", 1)
     const imagePathname = newReceiptImagePathname("user_a")
     await scanReceiptAction(
       IDLE,
