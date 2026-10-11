@@ -310,6 +310,30 @@ export async function selectReceiptTotals(
   return rows[0] ?? { receipt_count: 0, total_cents: 0, type_count: 0 }
 }
 
+/**
+ * How many receipts one person has saved since `since` (an ISO timestamp), in
+ * any organization. Backs the yearly receipt limit in lib/dal/entitlements.ts;
+ * the user tag means a save or delete expires it straight away.
+ */
+export async function countReceiptsCreatedSince(
+  userId: string,
+  since: string
+): Promise<number> {
+  "use cache"
+  cacheLife("hours")
+  cacheTag(`receipts:user:${userId}`)
+
+  const sql = getSql()
+  const rows = (await sql`
+    select count(*)::int as count
+    from receipts
+    where user_id = ${userId}
+      and created_at >= ${since}
+  `) as { count: number }[]
+
+  return rows[0]?.count ?? 0
+}
+
 // Whose receipts a search covers. "user" is everything the person saved
 // themselves (in any organization); "org" is everything saved into one
 // organization, by any member.

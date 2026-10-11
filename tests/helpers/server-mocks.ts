@@ -20,6 +20,10 @@ export const fake = {
   orgId: null as string | null,
   users: new Map<string, FakeUser>(),
   orgs: new Map<string, string>(),
+  // Clerk Billing: the Feature slugs the signed-in user's plan holds, and how
+  // many members each organization has (1 when not set).
+  features: new Set<string>(),
+  orgMembers: new Map<string, number>(),
   clerkDown: false,
   // Tags expired by updateTag (Server Actions) and revalidateTag (routes),
   // and the tags each cached read registered, in call order.
@@ -38,6 +42,8 @@ export function resetFakes() {
   signIn(null)
   fake.users.clear()
   fake.orgs.clear()
+  fake.features.clear()
+  fake.orgMembers.clear()
   fake.clerkDown = false
   fake.updatedTags.length = 0
   fake.revalidatedTags.length = 0
@@ -45,7 +51,12 @@ export function resetFakes() {
 }
 
 mock.module("@clerk/nextjs/server", () => ({
-  auth: async () => ({ userId: fake.userId, orgId: fake.orgId }),
+  auth: async () => ({
+    userId: fake.userId,
+    orgId: fake.orgId,
+    has: ({ feature, plan }: { feature?: string; plan?: string }) =>
+      feature !== undefined ? fake.features.has(feature) : plan === undefined,
+  }),
   clerkClient: async () => ({
     users: {
       getUserList: async ({ userId }: { userId: string[] }) => {
@@ -70,9 +81,18 @@ mock.module("@clerk/nextjs/server", () => ({
       }: {
         organizationId: string
       }) => {
+        if (fake.clerkDown) throw new Error("clerk unavailable")
+        const members = fake.orgMembers.get(organizationId)
         const name = fake.orgs.get(organizationId)
-        if (fake.clerkDown || !name) throw new Error("organization not found")
-        return { id: organizationId, name }
+        // An org set up only for its size resolves under a stand-in name.
+        if (!name && members === undefined) {
+          throw new Error("organization not found")
+        }
+        return {
+          id: organizationId,
+          name: name ?? organizationId,
+          membersCount: members ?? 1,
+        }
       },
     },
   }),

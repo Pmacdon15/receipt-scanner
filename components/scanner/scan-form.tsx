@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { toastActionError } from "@/lib/billing/toast"
 import { parseMoneyToCents } from "@/lib/money"
 import { RECEIPT_TYPES, receiptTypeLabel } from "@/lib/receipt-types"
 import {
@@ -189,7 +190,7 @@ export function ScanForm() {
       if (readingPathRef.current !== next.pathname) return
 
       if (result.status === "error") {
-        toast.error(result.message)
+        toastActionError(result)
       } else if (result.recognised) {
         applyExtracted(result.fields)
         toast.success("Read the receipt. Check the details before saving.")
@@ -239,7 +240,7 @@ export function ScanForm() {
         readingPathRef.current = null
         setCapture(null)
       } else {
-        toast.error(result.message)
+        toastActionError(result)
       }
     })
   }

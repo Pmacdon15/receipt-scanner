@@ -3,6 +3,11 @@
 import { updateTag } from "next/cache"
 
 import {
+  checkEntitlements,
+  EntitlementError,
+  ENTITLEMENTS,
+} from "@/lib/dal/entitlements"
+import {
   createReceipt,
   InvalidInputError,
   removeReceipt,
@@ -29,6 +34,8 @@ export type ScanFormState = {
   status: "idle" | "success" | "error"
   message: string
   fieldErrors: Partial<Record<ScanReceiptField, string>>
+  /** The plan blocked this; the form offers a link to the pricing page. */
+  upgrade?: boolean
 }
 
 export async function scanReceiptAction(
@@ -64,6 +71,9 @@ export async function scanReceiptAction(
         fieldErrors: { image: "That photo is not available to attach." },
       }
     }
+
+    // Receipt limit and organization size, checked in parallel.
+    await checkEntitlements(...ENTITLEMENTS.saveReceipt)
 
     const receipt = await createReceipt({
       merchant: form.merchant,
@@ -114,10 +124,15 @@ export async function extractReceiptAction(imagePathname: string) {
       }
     }
 
+    // Auto-detect on the plan, receipt limit and organization size, in
+    // parallel, before the photo goes to the vision model.
+    await checkEntitlements(...ENTITLEMENTS.autoDetect)
+
     const result = await extractReceiptFieldsSafely(imagePathname)
     return { status: "success" as const, ...result }
   } catch (error) {
-    return { status: "error" as const, message: describeError(error).message }
+    const { message, upgrade } = describeError(error)
+    return { status: "error" as const, message, upgrade }
   }
 }
 
@@ -232,7 +247,16 @@ export async function suggestReceiptTypeAction(input: {
 function describeError(error: unknown): {
   message: string
   fieldErrors: ScanFormState["fieldErrors"]
+  upgrade?: boolean
 } {
+  if (error instanceof EntitlementError) {
+    return {
+      message: error.message,
+      fieldErrors: {},
+      upgrade: error.upgradable,
+    }
+  }
+
   if (error instanceof UnauthorizedError) {
     return { message: "Sign in to save receipts.", fieldErrors: {} }
   }

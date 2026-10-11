@@ -6,5 +6,6 @@ export const site = {
     { href: "/scan", label: "Scan" },
     { href: "/search", label: "Search" },
     { href: "/documents", label: "Documents" },
+    { href: "/pricing", label: "Pricing" },
   ],
 } as const
