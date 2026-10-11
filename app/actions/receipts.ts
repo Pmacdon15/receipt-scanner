@@ -4,8 +4,8 @@ import { updateTag } from "next/cache"
 
 import {
   checkEntitlements,
-  EntitlementError,
   ENTITLEMENTS,
+  EntitlementError,
 } from "@/lib/dal/entitlements"
 import {
   createReceipt,

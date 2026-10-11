@@ -299,9 +299,7 @@ describe("extractReceiptAction (auto-detect)", () => {
     signIn("user_a")
     onPlan(PRO)
 
-    const result = await extractReceiptAction(
-      newReceiptImagePathname("user_a")
-    )
+    const result = await extractReceiptAction(newReceiptImagePathname("user_a"))
     expect(result.status).toBe("success")
   })
 

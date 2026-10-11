@@ -64,10 +64,7 @@ const getBillingContext = cache(async (): Promise<BillingContext> => {
 
 /** Receipts saved this calendar year stay under the plan's yearly limit. */
 export const receiptLimitCheck: EntitlementCheck = async (ctx) => {
-  const { limit, isTop } = resolveLimit(
-    RECEIPTS_PER_YEAR_TIERS,
-    ctx.hasFeature
-  )
+  const { limit, isTop } = resolveLimit(RECEIPTS_PER_YEAR_TIERS, ctx.hasFeature)
   const used = await countReceiptsCreatedSince(ctx.userId, startOfYear())
 
   if (used >= limit) {
