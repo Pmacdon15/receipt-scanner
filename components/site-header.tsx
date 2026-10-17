@@ -72,11 +72,14 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <Link
+          href="/"
+          className="flex min-w-0 items-center gap-2 font-semibold"
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ReceiptTextIcon className="size-4" />
           </span>
-          <span>{site.name}</span>
+          <span className="truncate">{site.name}</span>
         </Link>
 
         <nav className="ml-4 hidden items-center gap-1 md:flex">
@@ -94,7 +97,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <ThemeToggle />
 
           {!isLoaded && <Skeleton className="size-7 rounded-full" />}
@@ -115,9 +118,14 @@ export function SiteHeader() {
           {isLoaded && isSignedIn && (
             <>
               <UserButton appearance={{ elements: { avatarBox: "size-7" } }} />
-              <OrganizationSwitcher
-                appearance={{ elements: { avatarBox: "size-7" } }}
-              />
+              {/* The switcher shows the organization name, which is too wide
+                  for small screens and pushed the menu button off the edge.
+                  Below md it moves to its own row under the header bar. */}
+              <div className="hidden md:flex">
+                <OrganizationSwitcher
+                  appearance={{ elements: { avatarBox: "size-7" } }}
+                />
+              </div>
             </>
           )}
 
@@ -170,6 +178,14 @@ export function SiteHeader() {
           </Sheet>
         </div>
       </div>
+
+      {isLoaded && isSignedIn && (
+        <div className="mx-auto flex w-full max-w-6xl items-center border-t px-4 py-1.5 sm:px-6 md:hidden">
+          <OrganizationSwitcher
+            appearance={{ elements: { avatarBox: "size-6" } }}
+          />
+        </div>
+      )}
     </header>
   )
 }
